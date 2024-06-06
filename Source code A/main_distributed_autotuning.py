@@ -913,10 +913,10 @@ if __name__ == '__main__':
     # Use the saved initial models for training
     # NN_Quad    = []
     # for i in range(nq):
-    #     PATH_init = "trained data/trained_nn_quad_"+str(i)+".pt"
+    #     PATH_init = "trained data/initial_nn_quad_"+str(i)+".pt"
     #     nn_quad_i = torch.load(PATH_init)
     #     NN_Quad  += [nn_quad_i]
-    # PATHl_init = "trained data/trained_nn_load.pt"
+    # PATHl_init = "trained data/initial_nn_load.pt"
     # nn_load    = torch.load(PATHl_init)
     
   
