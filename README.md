@@ -13,8 +13,8 @@ Please find out more details in our paper: "Auto-Multilift: Distributed Learning
 1. [Project Overview](#project-Overview)
 2. [Dependency Packages](#Dependency-Packages)
 3. [How to Use](#How-to-Use)
-      1. [A: Distributed Learning of Adaptive Weightings](#A: Distributed Learning of Adaptive Weightings)
-      2. [B: Distributed Learning of Adaptive References](#B: Distributed Learning of Adaptive References)
+      1. [A: Distributed Learning of Adaptive Weightings](#A-Distributed-Learning-of-Adaptive-Weightings)
+      2. [B: Distributed Learning of Adaptive References](#B-Distributed-Learning-of-Adaptive-References)
 4. [Contact Us](#Contact-Us)
 
 ## 1. Project Overview
