@@ -6,7 +6,7 @@ The **Auto-Multilift** is a novel learning framework for cooperative load transp
 ![diagram](https://github.com/RCL-NUS/Auto-Multilift/assets/70559054/69630451-7259-4dcb-ba0c-cb23f0f5b6f5)
 
 
-Please find out more details in our paper: "Auto-Multilift: Distributed Learning and Control for Cooperative Load Transportation With Quadrotors"
+Please find out more details in our paper: "Auto-Multilift: Distributed Learning and Control for Cooperative Load Transportation With Quadrotors" [arXiv](http://arxiv.org/abs/2406.04858)
 
 
 ## Table of contents
