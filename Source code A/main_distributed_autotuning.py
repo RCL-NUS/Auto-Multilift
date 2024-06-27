@@ -1160,13 +1160,13 @@ if __name__ == '__main__':
                     # compute the system's sensitivity propagation for online learning
                     start_time = TM.time()
                     if sensmode == 's':
-                        All_quad_sens, Xl_pl, k_step = Sensprop.Distributed_sensitivity(Quads_Mat_s,Load_Mat_s)
+                        All_quad_sens, Xl_pl = Sensprop.Distributed_sensitivity(Quads_Mat_s,Load_Mat_s)
                     else:
-                        All_quad_sens, Xl_pl, k_step = Distributed_sensitivity(Quads_Mat_s,Load_Mat_s)
+                        All_quad_sens, Xl_pl = Distributed_sensitivity(Quads_Mat_s,Load_Mat_s)
                     senstime = (TM.time() - start_time)*1000
                     print("--- %s ms ---" % format(senstime,'.2f'),'k_step=',k_step)
                     Sens_time += [senstime]
-                    Sens_step += [k_step]
+                    %Sens_step += [k_step]
                     system_loss = 0 # the total loss at the time step k, system_loss = sum of loss_i + loss_l
                     # train the quadrotors' networks
                     for i in range(nq):
