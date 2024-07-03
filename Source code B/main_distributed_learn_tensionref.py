@@ -687,7 +687,7 @@ if __name__ == '__main__':
             if Ref0_anl <=np.pi/4*3:
                 passage = np.array([[0,3]]).T
                 obs1, obs2    = 2, 1
-                ta_max        = math.acos((obs1-obs2)/L0) + np.pi/36
+                ta_max        = math.acos((obs1-obs2)/L0) + np.pi/36 # the actual height of the obstacle can be higher than (obs1-obs2) to leave enough safety margin
             else:
                 passage = np.array([[0,-3]]).T
                 obs1, obs2    = 1.85, 1
