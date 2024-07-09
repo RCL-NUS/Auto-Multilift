@@ -41,9 +41,11 @@ First and foremost, the implementation for Auto-Multilift is straightforward to 
 
 
 ### A: Distributed Learning of Adaptive Weightings
-|                     Learning Process of a Large Multilift System With Six Quadrotors and Non-uniform Loas Mass Distribution            |
-:----------------------------------------------------------------------------------------------------------------------------------------:
-![6quad_learnning_process](https://github.com/RCL-NUS/Auto-Multilift/assets/70559054/dd18acf6-e98e-4070-a10f-bf46dc66e606)
+ Auto-Multilift       |      Safe-PDP (Open-loop Learning)
+:---------------------------------------------------------------:|:--------------------------------------------------------------:
+![cl_training](https://github.com/RCL-NUS/Auto-Multilift/assets/70559054/079f47af-ca09-4c64-84f7-152fc96fa71e) | ![ol_training](https://github.com/RCL-NUS/Auto-Multilift/assets/70559054/6762dab9-4859-454d-88d0-d64ca6a2affa)
+
+
 
 1. Open the Python file '**main_distributed_autotuning.py**' in the folder '**Source code A**'
 2. Before running, please do the following settings:
