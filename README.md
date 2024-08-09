@@ -28,6 +28,7 @@ The project consists of two folders, which correspond to the two experiments in 
 ## 2. Dependency Packages
 Please make sure that the following packages have already been installed before running the source code.
 * CasADi: version 3.5.5 Info: https://web.casadi.org/
+* ACADOS: Info: https://docs.acados.org/
 * Numpy: version 1.23.0 Info: https://numpy.org/
 * Pytorch: version 1.12.0+cu116 Info: https://pytorch.org/
 * Matplotlib: version 3.3.0 Info: https://matplotlib.org/
