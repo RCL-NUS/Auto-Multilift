@@ -48,16 +48,16 @@ First and foremost, the implementation for Auto-Multilift is straightforward to 
 
 
 
-1. Open the Python file '**main_distributed_autotuning.py**' in the folder '**Source code A**'
+1. Open the Python file '**main_distributed_autotuning_acados.py**' in the folder '**Source code A**'
 2. Before running, please do the following settings:
    * Set the number of quadrotors on line 42 (i.e., the fifth number in the 'uav_para' array).
    * Set the load mass value on line 43 (i.e., the first number in the 'load_para' array).
    * Set the MPC horizon on line 52 (the default value is 10).
    * Set the higher-level loss horizon on line 53 (the default value is 20).
-4. After completing the above settings, run the file '**main_distributed_autotuning.py**'. In the prompted terminal interface, you will be asked to select the control and sensitivity propagation modes.
+4. After completing the above settings, run the file '**main_distributed_autotuning_acados.py**'. In the prompted terminal interface, you will be asked to select the control and sensitivity propagation modes.
    * In our settings, 's' and 'p' denote 'sequential' and 'parallel' computing, respectively.
    * 'c' and 'o' represent 'closed-loop' (our method) and 'open-loop' (the Safe-PDP method [[1]](#1)) training modes.
-5. To evaluate the trained model, run the Python file '**main_distributed_autotuning_evaluation.py**'
+5. To evaluate the trained model, run the Python file '**main_distributed_autotuning_evaluation_acados.py**'
    * You can skip Step 4 and evaluate the saved models that were previously trained and employed in the paper. To do so, copy the files that end with '.pt' from the folder '**Previously trained models**' (within the folder '**Source code A**') to the folder '**trained data**' (where the retained models via Step 4 will be saved).
 
 
@@ -66,15 +66,15 @@ First and foremost, the implementation for Auto-Multilift is straightforward to 
 :----------------------------------------------------------------------------------------------------------------------------------------:
 ![training_tension_ref_cl](https://github.com/RCL-NUS/Auto-Multilift/assets/70559054/e7942afd-684f-4600-acd3-ff3710992ed6)
 
-1. Open the Python file '**main_distributed_learn_tensionref.py**' in the folder '**Source code B**'
+1. Open the Python file '**main_distributed_autotuning_acados_tensionref.py**' in the folder '**Source code B**'
 2. Before running, please do the following settings:
    * Set the number of quadrotors on line 40 to the same as that used in Section A (i.e., learning of adaptive weightings). 
    * Set the load mass value on line 43 (i.e., the first number in the 'load_para' array).
    * Set the MPC horizon on line 52 (the default value is 10).
    * Set the higher-level loss horizon on line 53 (the default value is 20).
-4. After completing the above settings, run the file '**main_distributed_learn_tensionref.py**'. In the prompted terminal interface, you will be asked to select the control and sensitivity propagation modes.
+4. After completing the above settings, run the file '**main_distributed_autotuning_acados_tensionref.py**'. In the prompted terminal interface, you will be asked to select the control and sensitivity propagation modes.
    * In our settings, 's' and 'p' denote 'sequential' and 'parallel' computing, respectively.
-5. To evaluate the trained model, run the Python file '**main_distributed_learn_tensionref_evaluation.py**'
+5. To evaluate the trained model, run the Python file '**main_distributed_acados_tensionref_evaluation.py**'
    * You can skip Step 4 and evaluate the saved models that were previously trained and employed in the paper. To do so, copy the files that end with '.pt' from the folder '**Previously trained models**' (within the folder '**Source code B**') to the folder '**trained data**' (where the retained models via Step 4 will be saved).
 
 ## 4. Contact Us
