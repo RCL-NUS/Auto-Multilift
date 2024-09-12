@@ -1,0 +1,5 @@
+little faster fig-8 7kg 0.7J vmax = 4.5 m/s (circle traj for training, vmax =3.5m/s)
+
+rmsex= 0.164 rmsey= 0.376 rmsez= 0.050 rmseagr= 6.178 rmseap= 3.119 rmseay= 0.612 (cl_3,our method, the best)
+rmsex= 0.195 rmsey= 0.443 rmsez= 0.762 rmseagr= 15.650 rmseap= 16.339 rmseay= 2.694(clwc_3)
+rmsex= 0.165 rmsey= 0.412 rmsez= 0.163 rmseagr= 11.463 rmseap= 9.583 rmseay= 2.970 (ol_3)
