@@ -1,0 +1,55 @@
+[9182836 5539569 4049816 3558128 3342148 3181049 2996301 2790488 2513983
+ 2206982 2021522 1771063 1483646 1256696 1052218  888980  704264  474697
+  377845  338406  327340  311721  290441  267053  242620  232775  211096
+  199755  184626  183833]
+
+s:--- 107.81 ms ---
+sensitivity: iteration: 1 quadrotor: 0 viol_Xi_pi= 0.01008 viol_Xi_pl= 0.04972 viol_Xl_pi= 0.00008
+sensitivity: iteration: 1 quadrotor: 1 viol_Xi_pi= 0.02390 viol_Xi_pl= 0.11329 viol_Xl_pi= 0.00041
+sensitivity: iteration: 1 quadrotor: 2 viol_Xi_pi= 0.01199 viol_Xi_pl= 0.04547 viol_Xl_pi= 0.00011
+sensitivity: iteration: 1 quadrotor: 3 viol_Xi_pi= 0.00569 viol_Xi_pl= 0.00383 viol_Xl_pi= 0.00004
+sensitivity: iteration: 1 quadrotor: 4 viol_Xi_pi= 0.00570 viol_Xi_pl= 0.09963 viol_Xl_pi= 0.00006
+sensitivity: iteration: 1 quadrotor: 5 viol_Xi_pi= 0.00499 viol_Xi_pl= 0.00675 viol_Xl_pi= 0.00006
+sensitivity: iteration- 1 payload: viol_Xl_pl= 0.04824
+sensitivity: iteration- 1 max_violation= 5.00000
+sensitivity: iteration: 2 quadrotor: 0 viol_Xi_pi= 0.00000 viol_Xi_pl= 0.02113 viol_Xl_pi= 0.00000
+sensitivity: iteration: 2 quadrotor: 1 viol_Xi_pi= 0.00000 viol_Xi_pl= 0.03681 viol_Xl_pi= 0.00000
+sensitivity: iteration: 2 quadrotor: 2 viol_Xi_pi= 0.00000 viol_Xi_pl= 0.02413 viol_Xl_pi= 0.00000
+sensitivity: iteration: 2 quadrotor: 3 viol_Xi_pi= 0.00000 viol_Xi_pl= 0.00380 viol_Xl_pi= 0.00000
+sensitivity: iteration: 2 quadrotor: 4 viol_Xi_pi= 0.00000 viol_Xi_pl= 0.04780 viol_Xl_pi= 0.00000
+sensitivity: iteration: 2 quadrotor: 5 viol_Xi_pi= 0.00000 viol_Xi_pl= 0.00314 viol_Xl_pi= 0.00000
+sensitivity: iteration- 2 payload: viol_Xl_pl= 0.00014
+sensitivity: iteration- 2 max_violation= 0.04780
+sensitivity: iteration: 3 quadrotor: 0 viol_Xi_pi= 0.00000 viol_Xi_pl= 0.00001 viol_Xl_pi= 0.00000
+sensitivity: iteration: 3 quadrotor: 1 viol_Xi_pi= 0.00000 viol_Xi_pl= 0.00002 viol_Xl_pi= 0.00000
+sensitivity: iteration: 3 quadrotor: 2 viol_Xi_pi= 0.00000 viol_Xi_pl= 0.00002 viol_Xl_pi= 0.00000
+sensitivity: iteration: 3 quadrotor: 3 viol_Xi_pi= 0.00000 viol_Xi_pl= 0.00001 viol_Xl_pi= 0.00000
+sensitivity: iteration: 3 quadrotor: 4 viol_Xi_pi= 0.00000 viol_Xi_pl= 0.00003 viol_Xl_pi= 0.00000
+sensitivity: iteration: 3 quadrotor: 5 viol_Xi_pi= 0.00000 viol_Xi_pl= 0.00001 viol_Xl_pi= 0.00000
+sensitivity: iteration- 3 payload: viol_Xl_pl= 0.00000
+sensitivity: iteration- 3 max_violation= 0.00003
+--- 81.29 ms ---
+k_train= 29 time step= 2996 loss_i= [[558.113]] norm_grad_i= 422.6541
+k_train= 29 time step= 2996 loss_i= [[558.113]] norm_grad_i= 4563.5620
+k_train= 29 time step= 2996 loss_i= [[558.113]] norm_grad_i= 1608.2942
+k_train= 29 time step= 2996 loss_i= [[558.113]] norm_grad_i= 268.8573
+k_train= 29 time step= 2996 loss_i= [[558.113]] norm_grad_i= 1191.6688
+k_train= 29 time step= 2996 loss_i= [[558.113]] norm_grad_i= 1397.2664
+k_train= 29 time step= 2996 loss_l= [[42089.702]] norm_grad_l= 682617.6442
+k_train= 29 ctrl step= 749 Loss[-1]= 53254 Loss[-2]= 52967 Loss[-10]= 49711 Loss[-20]= 46556
+k_train= 29 Loss_episode= [9182836, 5539569, 4049816, 3558128, 3342148, 3181049, 2996301, 2790488, 2513983, 2206982, 2021522, 1771063, 1483646, 1256696, 1052218, 888980, 704264, 474697, 377845, 338406, 327340, 311721, 290441, 267053, 242620, 232775, 211096, 199755, 184626]
+k= 2996 Tension = [[19.135 22.494 16.349 16.186 13.387 16.174]] ul= [19.825 22.885 16.557 16.262 13.936 16.344]
+k= 2996 Tension difference = [[0.690 0.391 0.208 0.076 0.549 0.170]] L1-AC estimation = [[0.107 0.062 0.037 0.012 0.082 0.026]]
+k= 2996 ref_pl= [3.000 -0.000 2.000] angle_t= 20.001 pl= [[3.074 -0.041 1.908]] Eulerl= [-3.958 4.056 0.335]
+k= 2996 quadrotor: 0 ref_p= [4.684 -0.000 3.879] p= [4.628 -0.052 3.763] Euler= [0.248 10.704 0.079]
+k= 2996 quadrotor: 0 ctrl= [[28.844 -0.000 0.001 0.000]]
+k= 2996 quadrotor: 1 ref_p= [3.842 1.458 3.879] p= [3.845 1.299 3.741] Euler= [-9.516 5.559 0.864]
+k= 2996 quadrotor: 1 ctrl= [[32.161 0.000 0.000 0.000]]
+k= 2996 quadrotor: 2 ref_p= [2.158 1.458 3.879] p= [2.178 1.348 3.777] Euler= [-9.462 -7.149 -1.196]
+k= 2996 quadrotor: 2 ctrl= [[25.909 0.001 0.000 0.000]]
+k= 2996 quadrotor: 3 ref_p= [1.316 -0.000 3.879] p= [1.354 -0.063 3.848] Euler= [0.406 -13.192 0.017]
+k= 2996 quadrotor: 3 ctrl= [[25.642 0.001 0.001 -0.000]]
+k= 2996 quadrotor: 4 ref_p= [2.158 -1.458 3.879] p= [2.177 -1.525 3.865] Euler= [10.521 -6.823 0.522]
+k= 2996 quadrotor: 4 ctrl= [[22.935 0.001 0.001 -0.000]]
+k= 2996 quadrotor: 5 ref_p= [3.842 -1.458 3.879] p= [3.860 -1.497 3.825] Euler= [10.779 5.099 -0.253]
+k= 2996 quadrotor: 5 ctrl= [[25.645 0.000 0.001 0.000]]
