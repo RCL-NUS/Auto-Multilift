@@ -1,0 +1,74 @@
+k_train= 30 time step= 2996 ctrl step= 749 quadrotor: 0 Qi_k= [89.907 34.118 98.518] Ri_k= [1.033 69.931 50.068 18.392]
+k_train= 30 time step= 2996 ctrl step= 749 quadrotor: 1 Qi_k= [74.839 86.306 97.012] Ri_k= [0.296 63.333 72.273 47.234]
+k_train= 30 time step= 2996 ctrl step= 749 quadrotor: 2 Qi_k= [67.734 58.813 84.068] Ri_k= [0.758 75.724 32.099 36.961]
+k_train= 30 time step= 2996 ctrl step= 749 quadrotor: 3 Qi_k= [57.712 53.687 57.561] Ri_k= [1.107 63.991 14.511 43.158]
+k_train= 30 time step= 2996 ctrl step= 749 quadrotor: 4 Qi_k= [58.227 69.352 87.788] Ri_k= [0.679 24.285 70.471 31.142]
+k_train= 30 time step= 2996 ctrl step= 749 quadrotor: 5 Qi_k= [79.025 65.953 58.018] Ri_k= [7.962 74.136 26.677 19.707]
+k_train= 30 time step= 2996 payload= Ql_k[0:3]= [47.594 25.847 31.446] Ql_k[6:9]= [82.659 76.897 38.900]
+k_train= 30 time step= 2996 payload= Ql_N[0:3]= [42.263 33.484 35.030] Rl_k= [0.897 0.407 1.616 6.271 1.117 32.179]
+iteration= 1 quadrotor_ID= 0 viol_xi= 0.05932 viol_ui= 0.07360
+iteration= 1 quadrotor_ID= 1 viol_xi= 0.07008 viol_ui= 0.13839
+iteration= 1 quadrotor_ID= 2 viol_xi= 0.05077 viol_ui= 0.06123
+iteration= 1 quadrotor_ID= 3 viol_xi= 0.01844 viol_ui= 0.04151
+iteration= 1 quadrotor_ID= 4 viol_xi= 0.05363 viol_ui= 0.08376
+iteration= 1 quadrotor_ID= 5 viol_xi= 0.05709 viol_ui= 0.05332
+iteration= 1 payload: viol_xl= 0.00771 viol_ul= 0.25702 viol_x0l= 0.0
+iteration= 1 max_violation= 5.00000
+iteration= 2 quadrotor_ID= 0 viol_xi= 0.00355 viol_ui= 0.14626
+iteration= 2 quadrotor_ID= 1 viol_xi= 0.00374 viol_ui= 0.17748
+iteration= 2 quadrotor_ID= 2 viol_xi= 0.00110 viol_ui= 0.02101
+iteration= 2 quadrotor_ID= 3 viol_xi= 0.00085 viol_ui= 0.00901
+iteration= 2 quadrotor_ID= 4 viol_xi= 0.00165 viol_ui= 0.04689
+iteration= 2 quadrotor_ID= 5 viol_xi= 0.00029 viol_ui= 0.00527
+iteration= 2 payload: viol_xl= 0.00047 viol_ul= 0.01758 viol_x0l= 0.0
+iteration= 2 max_violation= 0.17748
+iteration= 3 quadrotor_ID= 0 viol_xi= 0.00052 viol_ui= 0.00641
+iteration= 3 quadrotor_ID= 1 viol_xi= 0.00087 viol_ui= 0.01667
+iteration= 3 quadrotor_ID= 2 viol_xi= 0.00049 viol_ui= 0.01061
+iteration= 3 quadrotor_ID= 3 viol_xi= 0.00038 viol_ui= 0.00620
+iteration= 3 quadrotor_ID= 4 viol_xi= 0.00056 viol_ui= 0.01250
+iteration= 3 quadrotor_ID= 5 viol_xi= 0.00016 viol_ui= 0.00128
+iteration= 3 payload: viol_xl= 0.00032 viol_ul= 0.01142 viol_x0l= 0.0
+iteration= 3 max_violation= 0.01667
+iteration= 4 quadrotor_ID= 0 viol_xi= 0.00018 viol_ui= 0.00413
+iteration= 4 quadrotor_ID= 1 viol_xi= 0.00035 viol_ui= 0.01159
+iteration= 4 quadrotor_ID= 2 viol_xi= 0.00036 viol_ui= 0.00785
+iteration= 4 quadrotor_ID= 3 viol_xi= 0.00025 viol_ui= 0.00416
+iteration= 4 quadrotor_ID= 4 viol_xi= 0.00030 viol_ui= 0.00715
+iteration= 4 quadrotor_ID= 5 viol_xi= 0.00006 viol_ui= 0.00057
+iteration= 4 payload: viol_xl= 0.00022 viol_ul= 0.00765 viol_x0l= 0.0
+iteration= 4 max_violation= 0.01159
+iteration= 5 quadrotor_ID= 0 viol_xi= 0.00011 viol_ui= 0.00246
+iteration= 5 quadrotor_ID= 1 viol_xi= 0.00025 viol_ui= 0.00825
+iteration= 5 quadrotor_ID= 2 viol_xi= 0.00025 viol_ui= 0.00554
+iteration= 5 quadrotor_ID= 3 viol_xi= 0.00016 viol_ui= 0.00267
+iteration= 5 quadrotor_ID= 4 viol_xi= 0.00017 viol_ui= 0.00414
+iteration= 5 quadrotor_ID= 5 viol_xi= 0.00002 viol_ui= 0.00020
+iteration= 5 payload: viol_xl= 0.00016 viol_ul= 0.00523 viol_x0l= 0.0
+iteration= 5 max_violation= 0.00825
+s:--- 106.51 ms ---
+--- 1.27 ms ---
+k_train= 30 time step= 2996 loss_i= [[1774.525]] norm_grad_i= 2577.3394
+k_train= 30 time step= 2996 loss_i= [[2606.722]] norm_grad_i= 6484.0313
+k_train= 30 time step= 2996 loss_i= [[1935.455]] norm_grad_i= 43.6794
+k_train= 30 time step= 2996 loss_i= [[910.443]] norm_grad_i= 497.6936
+k_train= 30 time step= 2996 loss_i= [[190.810]] norm_grad_i= 404.7024
+k_train= 30 time step= 2996 loss_i= [[702.282]] norm_grad_i= 2041.9743
+k_train= 30 time step= 2996 loss_l= [[44901.970]] norm_grad_l= 487390.0091
+k_train= 30 ctrl step= 749 Loss[-1]= 53022 Loss[-2]= 52759 Loss[-10]= 49329 Loss[-20]= 45036
+k_train= 30 Loss_episode= [9028091, 5267271, 3797685, 3406736, 3190687, 2896343, 2603792, 2328476, 2043173, 1760438, 1524332, 1274786, 952940, 623617, 436233, 378982, 340642, 321115, 335757, 358145, 346140, 319551, 296970, 275647, 260986, 236575, 222085, 210490, 194370, 178832]
+k= 2996 Tension = [[18.766 22.641 16.266 15.845 13.679 16.116]] ul= [19.268 23.258 16.482 15.979 14.187 16.347]
+k= 2996 Tension difference = [[0.502 0.616 0.216 0.134 0.507 0.231]] L1-AC estimation = [[0.076 0.096 0.037 0.021 0.075 0.035]]
+k= 2996 ref_pl= [3.000 -0.000 2.000] angle_t= 20.001 pl= [[3.098 0.021 1.910]] Eulerl= [-3.841 4.067 1.029]
+k= 2996 quadrotor: 0 ref_p= [4.684 -0.000 3.879] p= [4.641 -0.001 3.767] Euler= [0.668 10.370 -0.068]
+k= 2996 quadrotor: 0 ctrl= [[28.398 -0.000 0.001 0.000]]
+k= 2996 quadrotor: 1 ref_p= [3.842 1.458 3.879] p= [3.834 1.390 3.743] Euler= [-10.023 5.086 0.734]
+k= 2996 quadrotor: 1 ctrl= [[32.310 -0.000 0.001 0.000]]
+k= 2996 quadrotor: 2 ref_p= [2.158 1.458 3.879] p= [2.167 1.361 3.788] Euler= [-8.724 -7.568 -0.959]
+k= 2996 quadrotor: 2 ctrl= [[25.811 0.000 0.001 0.000]]
+k= 2996 quadrotor: 3 ref_p= [1.316 -0.000 3.879] p= [1.384 -0.054 3.853] Euler= [1.087 -12.969 0.223]
+k= 2996 quadrotor: 3 ctrl= [[25.299 0.000 0.001 -0.000]]
+k= 2996 quadrotor: 4 ref_p= [2.158 -1.458 3.879] p= [2.184 -1.469 3.860] Euler= [10.580 -7.324 0.443]
+k= 2996 quadrotor: 4 ctrl= [[23.190 -0.000 0.002 -0.000]]
+k= 2996 quadrotor: 5 ref_p= [3.842 -1.458 3.879] p= [3.881 -1.443 3.823] Euler= [10.950 4.852 -0.745]
+k= 2996 quadrotor: 5 ctrl= [[25.566 -0.000 0.002 -0.000]]
