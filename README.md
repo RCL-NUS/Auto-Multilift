@@ -3,7 +3,8 @@ The **Auto-Multilift** is a novel learning framework for cooperative load transp
 
 |                     A Diagram of a multilift system and Auto-Multilift Learning Piplines             |
 :----------------------------------------------------------------------------------------------------------------------------------:
-![diagram](https://github.com/RCL-NUS/Auto-Multilift/assets/70559054/69630451-7259-4dcb-ba0c-cb23f0f5b6f5)
+![learning framework](https://github.com/user-attachments/assets/50dbedaa-f669-425d-a6d6-5e724c43abca)
+
 
 
 Please find out more details in our paper: "Auto-Multilift: Distributed Learning and Control for Cooperative Load Transportation With Quadrotors" [arXiv](http://arxiv.org/abs/2406.04858)
@@ -44,7 +45,8 @@ First and foremost, the implementation for Auto-Multilift is straightforward to 
 ### A: Distributed Learning of Adaptive Weightings
  Auto-Multilift       |      Safe-PDP (Open-loop Learning)
 :---------------------------------------------------------------:|:--------------------------------------------------------------:
-![cl_training](https://github.com/RCL-NUS/Auto-Multilift/assets/70559054/079f47af-ca09-4c64-84f7-152fc96fa71e) | ![ol_training](https://github.com/RCL-NUS/Auto-Multilift/assets/70559054/6762dab9-4859-454d-88d0-d64ca6a2affa)
+![cl](https://github.com/user-attachments/assets/008e356f-c9e6-475e-8230-2686ab05b600) | ![ol](https://github.com/user-attachments/assets/f3ff696e-0614-469d-8195-515795b77962)
+
 
 
 
@@ -62,9 +64,10 @@ First and foremost, the implementation for Auto-Multilift is straightforward to 
 
 
 ### B: Distributed Learning of Adaptive References
-|                     Learning Process of the Same Large Multilift System                                                                |
+|                     Flying Through Narrow Slots With Adaptive Tension References                                                                |
 :----------------------------------------------------------------------------------------------------------------------------------------:
-![training_tension_ref_cl](https://github.com/RCL-NUS/Auto-Multilift/assets/70559054/e7942afd-684f-4600-acd3-ff3710992ed6)
+![tensionref_dt_edit](https://github.com/user-attachments/assets/03ce359b-ccad-440c-9d9a-60ba35bc7a2a)
+
 
 1. Open the Python file '**main_distributed_autotuning_acados_tensionref.py**' in the folder '**Source code B**'
 2. Before running, please do the following settings:
