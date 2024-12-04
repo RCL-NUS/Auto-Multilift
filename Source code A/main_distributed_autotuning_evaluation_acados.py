@@ -27,18 +27,17 @@ from sklearn.metrics import mean_squared_error
 
 print("========================================")
 print("Main code for training or evaluating Distributed Autotuning Multilifting Controller")
-print("PLease choose ctrlmode")
-# ctrlmode = input("enter 's' or 'p' without the quotation mark:") # s: sequential, p: parallel
 print("========================================")
 
+mode = 'ol'
 
 """--------------------------------------Load environment---------------------------------------"""
 uav_para     = np.array([1, 0.02, 0.02, 0.04, 6, 0.2]) # L quadrotors
-load_para    = np.array([5, 1]) # 2.5 kg for 3 quadrotors, 5 kg for 6 quadrotors
-cable_para   = np.array([5e3, 1e-2, 1.5])
-Jl           = np.array([[1, 1, 1.25]]).T # payload's moment of inertia, 0.5*Jl for 3 quadrotors, Jl for 6 quadrotors
+load_para    = np.array([7, 1]) # 2.5 kg for 3 quadrotors, 7.5 kg for 6 quadrotors
+cable_para   = np.array([1e9,8e-6,1e-2,2]) # E=1 Gpa, A=7mm^2 (pi*1.5^2), c=10, L0=2, Nylon-HD, [5], np.array([5e3, 1e-2, 2])
+Jl           = 0.7*np.array([[2, 2, 2.5]]).T # payload's moment of inertia, 0.5*Jl for 3 quadrotors, Jl for 6 quadrotors
 rg           = np.array([[0.1, 0.1, -0.1]]).T # coordinate of the payload's CoM in {Bl}
-dt_sample    = 1e-2 # used in the 'step' function for simulating the environment
+dt_sample    = 5e-3 # used in the 'step' function for simulating the environment
 dt_ctrl      = 2e-2 # for control, 50Hz
 ratio        = int(dt_ctrl/dt_sample)
 stm          = Dynamics.multilifting(uav_para, load_para, cable_para, dt_ctrl)
@@ -60,7 +59,7 @@ lr_lp        = 1e-8
 nq         = int(uav_para[4])
 alpha      = 2*np.pi/nq
 rl         = load_para[1]
-L0         = cable_para[2]
+L0         = cable_para[3]
 loadp      = np.vstack((Jl,rg)) # payload's inertial parameter
 Di_in, Di_h, Di_out = 6, 30, 2*nwsi + nui # for quadrotors
 Dl_in, Dl_h, Dl_out = 12, 30, 2*nwsl + nul # for the payload
@@ -107,12 +106,12 @@ def Reference_for_MPC(time_traj, angle_t):
         Ref_xi  = np.zeros((nxi,horizon+1))
         Ref_ui  = np.zeros((nui,horizon))
         for j in range(horizon):
-            # ref_p, ref_v, ref_a   = stm.minisnap_quadrotor_fig8(Coeffx, Coeffy, Coeffz,time_traj + j*dt_ctrl, angle_t, i)
-            ref_p, ref_v, ref_a   = stm.new_circle_quadrotor(coeffa,time_traj + j*dt_ctrl, angle_t, i)
+            ref_p, ref_v, ref_a   = stm.minisnap_quadrotor_fig8(Coeffx, Coeffy, Coeffz,time_traj + j*dt_ctrl, angle_t, i)
+            # ref_p, ref_v, ref_a   = stm.new_circle_quadrotor(coeffa,time_traj + j*dt_ctrl, angle_t, i)
             # ref_p, ref_v, ref_a   = stm.hovering_quadrotor(angle_t, i)
             if i==0: # we only need to compute the payload's reference for an arbitrary quadrotor
-                # ref_pl, ref_vl, ref_al   = stm.minisnap_load_fig8(Coeffx, Coeffy, Coeffz,time_traj + j*dt_ctrl)
-                ref_pl, ref_vl, ref_al   = stm.new_circle_load(coeffa,time_traj + j*dt_ctrl)
+                ref_pl, ref_vl, ref_al   = stm.minisnap_load_fig8(Coeffx, Coeffy, Coeffz,time_traj + j*dt_ctrl)
+                # ref_pl, ref_vl, ref_al   = stm.new_circle_load(coeffa,time_traj + j*dt_ctrl)
                 # ref_pl, ref_vl, ref_al   = stm.hovering_load()
             qd, wd, f_ref, fl_ref, M_ref = GeoCtrl.system_ref(ref_a, load_para[0], ref_al)
             ref_xi    = np.vstack((ref_p,ref_v,qd,wd))
@@ -130,12 +129,12 @@ def Reference_for_MPC(time_traj, angle_t):
                     Ref0_l   = ref_xl
             if j == 0:
                 Ref0_xq += [np.vstack((ref_p,ref_v))]
-        # ref_p, ref_v, ref_a  = stm.minisnap_quadrotor_fig8(Coeffx, Coeffy, Coeffz,time_traj + horizon*dt_ctrl, angle_t, i)    
-        ref_p, ref_v, ref_a  = stm.new_circle_quadrotor(coeffa,time_traj + horizon*dt_ctrl, angle_t, i)
+        ref_p, ref_v, ref_a  = stm.minisnap_quadrotor_fig8(Coeffx, Coeffy, Coeffz,time_traj + horizon*dt_ctrl, angle_t, i)    
+        # ref_p, ref_v, ref_a  = stm.new_circle_quadrotor(coeffa,time_traj + horizon*dt_ctrl, angle_t, i)
         # ref_p, ref_v, ref_a   = stm.hovering_quadrotor(angle_t, i)
         if i==0:
-            # ref_pl, ref_vl, ref_al   = stm.minisnap_load_fig8(Coeffx, Coeffy, Coeffz,time_traj + horizon*dt_ctrl)
-            ref_pl, ref_vl, ref_al   = stm.new_circle_load(coeffa,time_traj + horizon*dt_ctrl)
+            ref_pl, ref_vl, ref_al   = stm.minisnap_load_fig8(Coeffx, Coeffy, Coeffz,time_traj + horizon*dt_ctrl)
+            # ref_pl, ref_vl, ref_al   = stm.new_circle_load(coeffa,time_traj + horizon*dt_ctrl)
             # ref_pl, ref_vl, ref_al   = stm.hovering_load()
         qd, wd, f_ref, fl_ref, M_ref = GeoCtrl.system_ref(ref_a, load_para[0], ref_al)
         ref_xi    = np.vstack((ref_p,ref_v,qd,wd))
@@ -232,169 +231,11 @@ def convert_load_nn(nn_l_outcolumn):
         nn_l_row[0,i] = nn_l_outcolumn[i,0]
     return nn_l_row
 
-def QuadrotorMPC(xi_fb, xq_traj, uq_traj, xl_traj, ul_traj, Ref_xi, Ref_ui, Para_i, i, xi_temp, ui_temp, ci_quad, viol_xtemp, viol_utemp, viol_ctemp):
-    opt_sol_i   = DistMPC.MPCsolverQuadrotor(xi_fb, xq_traj, xl_traj, ul_traj, Ref_xi, Ref_ui, Para_i, i)
-    xi_opt      = opt_sol_i['xi_opt']
-    ui_opt      = opt_sol_i['ui_opt']
-    cox_opt_i   = opt_sol_i['costate_traj_opt']
-    cox_ipopt_i = opt_sol_i['costate_ipopt']
-    sum_viol_xi = 0
-    sum_viol_ui = 0
-    sum_viol_cxi= 0
-    for ki in range(len(uq_traj[i])):
-        sum_viol_xi  += LA.norm(xi_opt[ki,:]-xq_traj[i][ki,:])
-        sum_viol_ui  += LA.norm(ui_opt[ki,:]-uq_traj[i][ki,:])
-        sum_viol_cxi += LA.norm(cox_opt_i[ki,:]-cox_ipopt_i[ki,:])
-    sum_viol_xi  += LA.norm(xi_opt[-1,:]-xq_traj[i][-1,:])
-    viol_xi  = np.reshape(sum_viol_xi/len(xi_opt),(1,1))
-    viol_ui  = np.reshape(sum_viol_ui/len(ui_opt),(1,1))
-    viol_cxi = np.reshape(sum_viol_cxi/len(cox_opt_i),(1,1))
-    xi_temp[:]  = np.reshape(xi_opt,(horizon+1)*nxi)
-    ui_temp[:]  = np.reshape(ui_opt,horizon*nui)
-    ci_quad[:]  = np.reshape(cox_ipopt_i,horizon*nxi)
-    viol_xtemp[:]  = np.reshape(viol_xi,1)
-    viol_utemp[:]  = np.reshape(viol_ui,1)
-    viol_ctemp[:]  = np.reshape(viol_cxi,1)
-
-
-# def Distributed_forwardMPC(xq_fb, xl_fb, xq_traj_prev, uq_traj_prev, xl_traj_prev, ul_traj_prev, Ref_xq, Ref_uq, Ref_xl, Ref_ul, Para_q, Para_l, Jl, rg):
-#     epsilon = 1e-2 # threshold for stopping the iteration
-#     k_max   = 5 # maximum number of iterations
-#     max_violation = 5 # initial value of max_violation, defined as the maximum value of the differences between two trajectories in successive iterations for all quadrotors
-#     k       = 1
-#     xq_traj = []
-#     uq_traj = []
-#     for iq in range(nq):
-#         xiq_traj = np.zeros((horizon+1,nxi))
-#         uiq_traj = np.zeros((horizon,nui))
-#         xi_prev  = xq_traj_prev[iq]
-#         ui_prev  = uq_traj_prev[iq]
-#         for iqk in range(horizon):
-#             xiq_traj[iqk,:] = xi_prev[iqk+1,:] # note that we have moved forward by one time-step, so we take elements from [1,:]
-#             if iqk <horizon-1:
-#                 uiq_traj[iqk,:] = ui_prev[iqk+1,:]
-#             else:
-#                 uiq_traj[-1,:] = ui_prev[-1,:]
-#         xiq_traj[-1,:] = xi_prev[-1,:]
-#         xq_traj += [xiq_traj]
-#         uq_traj += [uiq_traj]
-#     xl_traj = np.zeros((horizon+1,nxl))
-#     ul_traj = np.zeros((horizon,nul))
-#     for il in range(horizon):
-#         xl_traj[il,:] = xl_traj_prev[il+1,:]
-#         if il <horizon-1:
-#             ul_traj[il,:] = ul_traj_prev[il+1,:]
-#         else:
-#             ul_traj[-1,:] = ul_traj_prev[-1,:]
-#     xl_traj[-1,:] = xl_traj_prev[-1,:]
-    
-
-#     while max_violation>=epsilon and k<=k_max:
-#         viol_xtemp  = []
-#         viol_utemp  = []
-#         viol_cxtemp = []
-#         viol_x      = []
-#         viol_u      = []
-#         xq_temp     = [] # temporary list for saving the updated state trajectories during the 'for' loop
-#         uq_temp     = [] # temporary list for saving the updated control trajectories during the 'for' loop
-#         cx_quad     = []
-#         cx_temp     = []
-#         n_process   = []
-
-#         for _ in range(nq):
-#             xi_traj = Array('d',np.zeros((horizon+1)*nxi))
-#             ui_traj = Array('d',np.zeros((horizon)*nui))
-#             ci_traj = Array('d',np.zeros((horizon)*nxi))
-#             viol_xi = Array('d',np.zeros(1))
-#             viol_ui = Array('d',np.zeros(1))
-#             viol_ci = Array('d',np.zeros(1))
-#             xq_temp.append(xi_traj)
-#             uq_temp.append(ui_traj)
-#             cx_temp.append(ci_traj)
-#             viol_xtemp.append(viol_xi)
-#             viol_utemp.append(viol_ui)
-#             viol_cxtemp.append(viol_ci)
-        
-
-#         for i in range(nq):
-#             p = Process(target=QuadrotorMPC,args=(xq_fb[i], xq_traj, uq_traj, xl_traj, ul_traj, Ref_xq[i], Ref_uq[i], Para_q[i], i, xq_temp[i], uq_temp[i], cx_temp[i], viol_xtemp[i], viol_utemp[i], viol_cxtemp[i]))
-#             p.start() 
-#             n_process.append(p)
-        
-#         for p in n_process: 
-#             p.join()
-
-#         # futures = []
-#         # with ThreadPoolExecutor(max_workers=nq) as executor:
-#         #     for i in range(nq):
-#         #         futures.append(executor.submit(QuadrotorMPC,xq_fb[i], xq_traj, uq_traj, xl_traj, ul_traj, Ref_xq[i], Ref_uq[i], Para_q[i], i, xq_temp[i], uq_temp[i], cx_temp[i], viol_xtemp[i], viol_utemp[i], viol_cxtemp[i]))
-        
-#         # for future in futures:
-#         #     future.result()
-        
-#         for i in range(nq):
-#             xi_opt = np.reshape(xq_temp[i],(horizon+1, nxi))
-#             ui_opt = np.reshape(uq_temp[i],(horizon, nui))
-#             ci_ipopt = np.reshape(cx_temp[i],(horizon, nxi))
-#             violxi = np.reshape(viol_xtemp[i],(1))
-#             violui = np.reshape(viol_utemp[i],(1))
-#             violci = np.reshape(viol_cxtemp[i],(1))
-#             # print('iteration=',k,'quadrotor_ID=',i,'viol_xi=',format(violxi[0],'.5f'),'viol_ui=',format(violui[0],'.5f'),'viol_cxi=',format(violci[0],'.5f'))
-#             xq_traj[i] = xi_opt
-#             uq_traj[i] = ui_opt
-#             cx_quad   += [ci_ipopt]
-#             viol_x    += [violxi[0]]
-#             viol_u    += [violui[0]]
-        
-
-#         # solve the MPC of the payload using the updated quadrotor trajectories xq_traj
-#         opt_sol_l   = DistMPC.MPCsolverPayload(xl_fb, xq_traj, Ref_xl, Ref_ul, Para_l, Jl, rg)
-#         xl_opt      = opt_sol_l['xl_opt']
-#         ul_opt      = opt_sol_l['ul_opt']
-#         cox_opt_l   = opt_sol_l['costatel_traj_opt']
-#         cox_ipopt_l = opt_sol_l['costatel_ipopt']
-#         sum_viol_xl = 0
-#         sum_viol_ul = 0
-#         sum_viol_cxl= 0
-#         for kl in range(len(ul_traj)):
-#             sum_viol_xl  += LA.norm(xl_opt[kl,:]-xl_traj[kl,:])
-#             sum_viol_ul  += LA.norm(ul_opt[kl,:]-ul_traj[kl,:])
-#             sum_viol_cxl += LA.norm(cox_opt_l[kl,:]-cox_ipopt_l[kl,:])
-#         sum_viol_xl  += LA.norm(xl_opt[-1,:]-xl_traj[-1,:])
-#         viol_xl  = sum_viol_xl/len(xl_opt)
-#         viol_ul  = sum_viol_ul/len(ul_opt)
-#         viol_cxl = sum_viol_cxl/len(cox_opt_l)
-#         viol_x  += [viol_xl]
-#         viol_u  += [viol_ul]
-#         # initial_error = LA.norm(np.reshape(xl_opt[0,:],(nxl,1))-xl_fb)
-#         print('iteration=',k,'payload:','viol_xl=',format(viol_xl,'.5f'),'viol_ul=',format(viol_ul,'.5f'),'viol_cxl=',format(viol_cxl,'.5f'))
-#         # update the payload's trajectories
-#         xl_traj  = xl_opt
-#         ul_traj  = ul_opt
-
-#         # compute the maximum violation value
-#         viol  = np.concatenate((viol_x,viol_u))
-#         if k>1:
-#              max_violation = np.max(viol)
-#         print('iteration=',k,'max_violation=',format(max_violation,'.5f'))
-#         # update the iteration number
-#         k += 1
-    
-#     # output
-#     opt_system = {"xq_traj":xq_traj,
-#                   "uq_traj":uq_traj,
-#                   "xl_traj":xl_traj,
-#                   "ul_traj":ul_traj,
-#                   "cx_quad":cx_quad,
-#                   "cx_load":cox_ipopt_l}
-        
-#     return opt_system
-
 
 
 """=========================Evaluation process======================="""
 def Evaluate():
-    T_end      = 15 # total simulation duration
+    T_end      = stm.Tc # total simulation duration
     N          = int(T_end/dt_sample) # total iterations
     if not os.path.exists("Evaluation results"):
         os.makedirs("Evaluation results")
@@ -437,7 +278,7 @@ def Evaluate():
     
     # Initialization of the system states
     # initial palyload's state
-    x0         = np.random.normal(stm.rc,0.01)
+    x0         = np.random.normal(0,0.01)
     y0         = np.random.normal(0,0.01)
     z0         = np.random.normal(stm.hc,0.01)
     pl         = np.array([[x0,y0,z0]]).T
@@ -634,12 +475,11 @@ def Evaluate():
             print('k=',k,'quadrotor:',i,'ref_p=',Ref0_xq[i][0:3,0].T,'p=',Quad_State[-1][i][0:3,0].T,'Euler=',np.reshape(57.3*EULERi[i],(3)))
             print('k=',k,'quadrotor:',i,'ctrl=',uq[i].T)
             
-
         # update the system states using the 'step' function
-        xq3           = np.zeros((3,nq))
+        Xq           = np.zeros((nxi,nq))
         for i in range(nq):
-            xq3[:,i]  = xq[i][0:3,0]
-        output_l     = stm.step_load(xl, ul, xq3, Jl, rg, dt_sample) # ul
+            Xq[:,i]  = xq[i][:,0]
+        output_l     = stm.step_load(xl, ul, Xq, Jl, rg, dt_sample) # ul
         pl           = output_l['pl_new']
         vl           = output_l['vl_new']
         ql           = output_l['ql_new']
@@ -670,15 +510,15 @@ def Evaluate():
    
         
         # save the evaluation results
-        np.save('Evaluation results/Quad_State_fig_8_openloop_6quad',Quad_State)
-        np.save('Evaluation results/Quad_Control_fig_8_openloop_6quad',Quad_Control)
-        np.save('Evaluation results/Load_State_fig_8_openloop_6quad',Load_State)
-        np.save('Evaluation results/Tension_Load_Actual_fig_8_openloop_6quad',Tension_Load_Actual)
-        np.save('Evaluation results/Tension_Load_MPC_fig_8_openloop_6quad',Tension_Load_MPC)
+        np.save('Evaluation results/Quad_State_fig_8_6quad_'+str(mode),Quad_State)
+        np.save('Evaluation results/Quad_Control_fig_8_6quad_'+str(mode),Quad_Control)
+        np.save('Evaluation results/Load_State_fig_8_6quad_'+str(mode),Load_State)
+        np.save('Evaluation results/Tension_Load_Actual_fig_8_6quad_'+str(mode),Tension_Load_Actual)
+        np.save('Evaluation results/Tension_Load_MPC_fig_8_6quad_'+str(mode),Tension_Load_MPC)
         np.save('Evaluation results/TIME',TIME)
-        np.save('Evaluation results/EULERl_fig_8_openloop_6quad',EULER_l)
-        np.save('Evaluation results/Ref_Load_fig_8_openloop_6quad',Ref_Load)
-        np.save('Evaluation results/Vl_fig_8_openloop_6quad',Vl)
+        np.save('Evaluation results/EULERl_fig_8_6quad_'+str(mode),EULER_l)
+        np.save('Evaluation results/Ref_Load_fig_8_6quad_'+str(mode),Ref_Load)
+        np.save('Evaluation results/Vl_fig_8_6quad_'+str(mode),Vl)
     rmsex = format(mean_squared_error(STATE_l[0,:],REF_P_l[0,:],squared=False),'.3f')
     rmsey = format(mean_squared_error(STATE_l[1,:],REF_P_l[1,:],squared=False),'.3f')
     rmsez = format(mean_squared_error(STATE_l[2,:],REF_P_l[2,:],squared=False),'.3f')
@@ -687,7 +527,7 @@ def Evaluate():
     rmseay = format(mean_squared_error(EULER_l[2,:],np.zeros((N)),squared=False)*57.3,'.3f')
     print('rmsex=',rmsex,'rmsey=',rmsey,'rmsez=',rmsez,'rmseagr=',rmsear,'rmseap=',rmseap,'rmseay=',rmseay)
     rmse = np.array([rmsex,rmsey,rmsez,rmsear,rmseap,rmseay]) 
-    np.save('Evaluation results/Rmse_fig_8_openloop_6quad',rmse)
+    np.save('Evaluation results/Rmse_fig_8_6quad_'+str(mode),rmse)
     # if not os.path.exists("plots_test"):
     #     os.makedirs("plots_test")
     # plotting
@@ -701,7 +541,7 @@ def Evaluate():
     plt.ylabel('Actual tension force [N]')
     plt.legend(['Cable0', 'Cable1', 'Cable2', 'Cable3'])
     plt.grid()
-    plt.savefig('Evaluation results/cable_actual_tensions_fig_8_openloop_6quad.png',dpi=400)
+    plt.savefig('Evaluation results/cable_actual_tensions_fig_8_6quad_'+str(mode)+'.png',dpi=400)
     plt.show()
 
     plt.figure(3,dpi=400)
@@ -714,7 +554,7 @@ def Evaluate():
     plt.ylabel('MPC tension force [N]')
     plt.legend(['Cable0', 'Cable1', 'Cable2', 'Cable3'])
     plt.grid()
-    plt.savefig('Evaluation results/cable_MPC_tensions_fig_8_openloop_6quad.png',dpi=400)
+    plt.savefig('Evaluation results/cable_MPC_tensions_fig_8_6quad_'+str(mode)+'.png',dpi=400)
     plt.show()
 
     plt.figure(4,dpi=400)
@@ -725,7 +565,7 @@ def Evaluate():
     plt.ylabel('Payload attitude [deg]')
     plt.legend(['roll', 'pitch', 'yaw'])
     plt.grid()
-    plt.savefig('Evaluation results/payload_attitude_MPC_fig_8_openloop_6quad.png',dpi=400)
+    plt.savefig('Evaluation results/payload_attitude_MPC_fig_8_6quad_'+str(mode)+'.png',dpi=400)
     plt.show()
 
     fig, (ax1, ax2, ax3) = plt.subplots(3,sharex=True, dpi=400)
@@ -761,7 +601,7 @@ def Evaluate():
     ax1.grid()
     ax2.grid()
     ax3.grid()
-    plt.savefig('Evaluation results/payload_position_MPC_fig_8_openloop_6quad.png',dpi=400)
+    plt.savefig('Evaluation results/payload_position_MPC_fig_8_6quad_'+str(mode)+'.png',dpi=400)
     plt.show()
 
     plt.figure(6,dpi=400)
@@ -772,7 +612,7 @@ def Evaluate():
     plt.xlabel('x [m]')
     plt.ylabel('y [m]')
     plt.grid()
-    plt.savefig('Evaluation results/payload_3D_MPC_fig_8_openloop_6quad.png',dpi=400)
+    plt.savefig('Evaluation results/payload_3D_MPC_fig_8_6quad_'+str(mode)+'.png',dpi=400)
     plt.show()
 
 if __name__ == '__main__':

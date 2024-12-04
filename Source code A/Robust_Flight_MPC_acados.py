@@ -188,7 +188,7 @@ class MPC:
         self.ml    = load_para[0]
         self.rl    = load_para[1] # payload's radius
         # Cable's parameters
-        self.cl0   = cable_para[2]
+        self.cl0   = cable_para[3]
         # Unit direction vector free of coordinate
         self.ex    = np.array([[1, 0, 0]]).T
         self.ey    = np.array([[0, 1, 0]]).T
@@ -261,6 +261,7 @@ class MPC:
         self.f_i      = Function('fi',[self.xi, self.ui, self.xl, self.ti, self.ind_q],[fi],['xi0', 'ui0', 'xl0', 'ti0', 'i0'],['fif'])
         self.f_l      = Function('fl',[self.xl, self.ul, self.xq, self.Jldiag, self.rg],[fl],['xl0', 'ul0', 'xq0', 'Jl0', 'rg0'],['flf'])
 
+    
     def SetLearnablePara(self):
         self.n_wsi    = 12 # dimension of the quadrotor state weightings
         self.n_wsl    = 12 # dimension of the payload state weightings
@@ -269,6 +270,7 @@ class MPC:
         self.n_pi     = self.para_i.numel()
         self.n_pl     = self.para_l.numel()
 
+    
     def SetQuadrotorCostDyn(self):
         self.ref_xi   = SX.sym('ref_xi',self.n_xi,1)
         self.ref_ui   = SX.sym('ref_ui',self.n_ui,1)
@@ -542,17 +544,6 @@ class MPC:
         """
         # predict horizon in seconds
         T = self.N * self.dt
-        # self.statei_traj_opt   = np.zeros((self.N+1,self.n_xi))
-        # self.controli_traj_opt = np.zeros((self.N,self.n_ui))
-
-        # w = []
-        # self.w0  = []
-        # self.lbw = []
-        # self.ubw = []
-        # J = 0
-        # g = []
-        # self.lbg = []
-        # self.ubg = []
 
         ##--------model dynamic symbolic expression------##
         Model_q = []
@@ -659,7 +650,7 @@ class MPC:
             OCP_q[i].solver_options.integrator_type = 'ERK'
             OCP_q[i].solver_options.sim_method_num_stages = 4 # default 4, meaning 4-th order Runge Kutta
             OCP_q[i].solver_options.print_level = 0
-            OCP_q[i].solver_options.levenberg_marquardt = 1e-15 # small value for gauss newton method, large value for gradient descent method
+            OCP_q[i].solver_options.levenberg_marquardt = 1e-10 # small value for gauss newton method, large value for gradient descent method
             OCP_q[i].solver_options.nlp_solver_type = 'SQP_RTI' # SQP_RTI or SQP
             # ocp.solver_options.nlp_solver_max_iter = 100
 
@@ -673,11 +664,19 @@ class MPC:
                 build_i=False
                 generate_i=False
             self.OCP_q_solver += [AcadosOcpSolver(OCP_q[i],generate=generate_i,build=build_i,json_file=json_file_i)]
-
         
+        ##--------compute Lagrangian multipliers from KKT conditions---------##
+        cik_aug  = self.Ji_k + self.hc_k + self.gq_k
+        ciN_aug  = self.Ji_N + self.hc_k + self.gq_k
+        dcik_aug = jacobian(cik_aug, self.xi)
+        dciN_aug = jacobian(ciN_aug, self.xi)
+        dModeli  = jacobian(self.Modeli,self.xi)
+        self.dJk_fn  = Function('dJk',[self.xi, self.ui, self.xl, self.x_qi, self.ref_xi, self.ref_ui, self.para_i, self.ind_q],[dcik_aug],['xi0', 'ui0', 'xl0', 'xq0', 'refxi0', 'refui0', 'parai0','i0'],['dJkf'])
+        self.dJN_fn   = Function('dJN',[self.xi, self.xl, self.x_qi, self.ref_xi, self.para_i, self.ind_q],[dciN_aug],['xi0', 'xl0', 'xq0', 'refxi0', 'parai0','i0'],['dJNf'])
+        self.F_fn    = Function('F',[self.xi, self.ui, self.xl, self.ti, self.ind_q],[dModeli],['xi0', 'ui0', 'xl0', 'ti0', 'i0'],['Ff'])
         
     
-    def MPCsolverQuadrotor_acados(self, xi_fb, xqi_traj, xl_traj, ul_traj, Ref_xi, Ref_ui, Para_i, index, ke):
+    def MPCsolverQuadrotor_acados(self, xi_fb, xqi_traj, xl_traj, ul_traj, Ref_xi, Ref_ui, Para_i, index):
         """
         This function solves the optimal control problem (ocp) using ACADOS
         """
@@ -716,8 +715,7 @@ class MPC:
 
         if status!=0:
             NO_SOLUTION_FLAG = True
-        if ke ==2:
-            test =0
+
         ##--------take the optimal control and state sequences-------##
         statei_traj_opt   = np.zeros((self.N+1,self.n_xi))
         controli_traj_opt = np.zeros((self.N,self.n_ui))
@@ -726,9 +724,31 @@ class MPC:
             controli_traj_opt[k:k+1,:]=np.reshape(self.OCP_q_solver[index].get(k,'u'),(1,self.n_ui))
         statei_traj_opt[self.N:self.N+1,:] = np.reshape(self.OCP_q_solver[index].get(self.N,'x'),(1,self.n_xi))
 
+        ##--------compute the Lagrangian multiplier trajectory-------##
+        costatei_traj_opt = numpy.zeros((self.N, self.n_xi))
+        costatei_traj_opt[self.N-1:self.N,:] = np.reshape(self.dJN_fn(xi0=statei_traj_opt[-1,:],xl0=xlN,xq0=np.transpose(np.reshape(xqjN,(self.nq-1,2))),refxi0=ref_xN,parai0=Para_i,i0=index)['dJNf'].full(),(1,self.n_xi))
+        for k in range(self.N-1,0,-1):
+            xi_curr   = statei_traj_opt[k,:]
+            ui_curr   = controli_traj_opt[k,:]
+            ref_xi = Ref_xi[k*self.n_xi:(k+1)*self.n_xi]
+            ref_ui = Ref_ui[k*self.n_ui:(k+1)*self.n_ui]
+            lambda_c  = np.reshape(costatei_traj_opt[k,:],(self.n_xi,1))
+            xqj       = np.zeros(2*(self.nq-1))
+            for j in range(self.nq-1):
+                xj = xqi_traj[(j*2*(self.N+1)+2*k):(j*2*(self.N+1)+2*(k+1))]
+                xqj[2*j:2*(j+1)] = xj
+            xli    = xl_traj[k*self.n_xl:(k+1)*self.n_xl]
+            uli    = np.reshape(ul_traj[k],1)
+            dcdx_k    = np.reshape(self.dJk_fn(xi0=xi_curr, ui0=ui_curr, xl0=xli, xq0=np.transpose(np.reshape(xqj,(self.nq-1,2))), refxi0=ref_xi, refui0=ref_ui, parai0=Para_i,i0=index)['dJkf'].full(),(self.n_xi,1))
+            dfdx_k    = self.F_fn(xi0=xi_curr, ui0=ui_curr, xl0=xli, ti0=uli, i0=index)['Ff'].full()
+            lambda_pre= dcdx_k + dfdx_k.T@lambda_c
+            costatei_traj_opt[(k-1):k,:] = lambda_pre.T
+        
+
         # output
         opt_soli = {"xi_opt": statei_traj_opt,
-                    "ui_opt":controli_traj_opt}
+                    "ui_opt": controli_traj_opt,
+                    "costatei_opt": costatei_traj_opt}
         
         return opt_soli
        
@@ -871,8 +891,6 @@ class MPC:
         """
         # predict horizon in seconds
         T = self.N * self.dt
-        self.statel_traj_opt   = np.zeros((self.N+1,self.n_xl))
-        self.controll_traj_opt = np.zeros((self.N,self.n_ul))
 
         ##-------model dynamic symbolic expression------##
         modell = AcadosModel()
@@ -894,7 +912,7 @@ class MPC:
         Pl = SX.sym('Pl',(self.n_xl # state reference at one step
                         +self.n_ul # control reference at one step
                         +self.n_pl # hyperparameters
-                        +self.nq*3 # all the quadrotors' states
+                        +self.nq*self.n_xi # all the quadrotors' states
                         +self.n_lp)) # load inertial parameters
         modell.p = Pl
 
@@ -905,8 +923,8 @@ class MPC:
         ##-------set the ocp model-------##
         ocpl.dims.N = self.N # number of nodes
         ocpl.solver_options.tf = T # horizon length T (unit: second)
-        ocpl.dims.np = self.n_xl + self.n_ul + self.n_pl + self.nq*3 + self.n_lp
-        ocpl.parameter_values = np.zeros(self.n_xl + self.n_ul + self.n_pl + self.nq*3 + self.n_lp)
+        ocpl.dims.np = self.n_xl + self.n_ul + self.n_pl + self.nq*self.n_xi + self.n_lp
+        ocpl.parameter_values = np.zeros(self.n_xl + self.n_ul + self.n_pl + self.nq*self.n_xi + self.n_lp)
         
         # system state and control varialbes
         modell.x    = self.xl
@@ -917,15 +935,15 @@ class MPC:
         Ref_xl = ocpl.model.p[0:self.n_xl]
         Ref_ul = ocpl.model.p[self.n_xl:(self.n_xl+self.n_ul)]
         Para_l = ocpl.model.p[(self.n_xl+self.n_ul):(self.n_xl+self.n_ul+self.n_pl)]
-        xq     = ocpl.model.p[(self.n_xl+self.n_ul+self.n_pl):(self.n_xl+self.n_ul+self.n_pl+self.nq*3)]
-        Jl     = ocpl.model.p[(self.n_xl+self.n_ul+self.n_pl+self.nq*3):(self.n_xl+self.n_ul+self.n_pl+self.nq*3+3)]
-        rg     = ocpl.model.p[(self.n_xl+self.n_ul+self.n_pl+self.nq*3+3):(self.n_xl+self.n_ul+self.n_pl+self.nq*3+self.n_lp)]
+        xq     = ocpl.model.p[(self.n_xl+self.n_ul+self.n_pl):(self.n_xl+self.n_ul+self.n_pl+self.nq*self.n_xi)]
+        Jl     = ocpl.model.p[(self.n_xl+self.n_ul+self.n_pl+self.nq*self.n_xi):(self.n_xl+self.n_ul+self.n_pl+self.nq*self.n_xi+3)]
+        rg     = ocpl.model.p[(self.n_xl+self.n_ul+self.n_pl+self.nq*self.n_xi+3):(self.n_xl+self.n_ul+self.n_pl+self.nq*self.n_xi+self.n_lp)]
        
 
         # explicit model
-        Xq     = SX.sym('Xq',3,self.nq)
+        Xq     = SX.sym('Xq',self.n_xi,self.nq)
         for k in range(self.nq):
-            xqi = xq[k*3:(k+1)*3]
+            xqi = xq[k*self.n_xi:(k+1)*self.n_xi]
             Xq[:,k]=xqi
         modell.f_expl_expr = self.f_l(xl0=ocpl.model.x,ul0=ocpl.model.u,xq0=Xq,Jl0=Jl,rg0=rg)['flf']
 
@@ -973,7 +991,7 @@ class MPC:
         ocpl.solver_options.integrator_type = 'ERK'
         ocpl.solver_options.sim_method_num_stages = 4 # default 4
         ocpl.solver_options.print_level = 0
-        ocpl.solver_options.levenberg_marquardt = 1e-15 # small value for gauss newton method, large value for gradient descent method
+        ocpl.solver_options.levenberg_marquardt = 1e-10 # small value for gauss newton method, large value for gradient descent method
         ocpl.solver_options.nlp_solver_type ='SQP_RTI' # SQP_RTI or SQP
         # ocpl.solver_options.nlp_solver_max_iter = 100
 
@@ -989,6 +1007,17 @@ class MPC:
             generate_i=False
         self.acados_solver_ql = AcadosOcpSolver(ocpl,generate=generate_l,build=build_l,json_file=json_file_l)
 
+        ##--------compute Lagrangian multipliers from KKT conditions---------##
+        clk_aug  = self.Jl_k + self.hl_k
+        clN_aug  = self.Jl_N + self.hl_k
+        dclk_aug = jacobian(clk_aug,self.xl)
+        dclN_aug = jacobian(clN_aug,self.xl)
+        dModell  = jacobian(self.Modell,self.xl)
+        self.dJlk_fn  = Function('dJlk',[self.xl, self.ul, self.xq, self.ref_xl, self.ref_ul, self.para_l], [dclk_aug], ['xl0', 'ul0', 'xq0', 'refxl0', 'reful0', 'paral0'], ['dJlkf'])
+        self.dJlN_fn  = Function('dJlN',[self.xl, self.xq, self.ref_xl, self.para_l],[dclN_aug],['xl0', 'xq0', 'refxl0', 'paral0'],['dJlNf'])
+        self.Fcl_fn   = Function('Fl',[self.xl, self.ul, self.xq, self.Jldiag, self.rg], [dModell], ['xl0', 'ul0', 'xq0', 'Jl0', 'rg0'], ['Flf'])
+
+
 
     def MPCsolverPayload_acados(self, xl_fb, xq_traj, Ref_xl, Ref_ul, Para_l, Jl, rg):
         """
@@ -999,19 +1028,19 @@ class MPC:
         for k in range(self.N):
             ref_xl = Ref_xl[k*self.n_xl:(k+1)*self.n_xl]
             ref_ul = Ref_ul[k*self.n_ul:(k+1)*self.n_ul]
-            xqi    = np.zeros(3*self.nq)
+            xqi    = np.zeros(self.n_xi*self.nq)
             for i in range(self.nq):
-                xi = xq_traj[(i*3*(self.N+1)+3*k):(i*3*(self.N+1)+3*(k+1))]
-                xqi[3*i:3*(i+1)] = xi
+                xi = xq_traj[(i*self.n_xi*(self.N+1)+self.n_xi*k):(i*self.n_xi*(self.N+1)+self.n_xi*(k+1))]
+                xqi[self.n_xi*i:self.n_xi*(i+1)] = xi
             self.acados_solver_ql.set(k,'p',np.concatenate((ref_xl,ref_ul,Para_l,xqi,Jl,rg)))
         
         # set the terminal cost
-        ref_xN = Ref_xl[self.N*self.n_xl:(self.N+1)*self.n_xl]
-        xqiN   = np.zeros(3*self.nq)
+        ref_xlN = Ref_xl[self.N*self.n_xl:(self.N+1)*self.n_xl]
+        xqiN   = np.zeros(self.n_xi*self.nq)
         for i in range(self.nq):
-            xiN = xq_traj[(i*3*(self.N+1)+3*self.N):(i*3*(self.N+1)+3*(self.N+1))]
-            xqiN[3*i:3*(i+1)]=xiN
-        self.acados_solver_ql.set(self.N,'p',np.concatenate((ref_xN,ref_ul,Para_l,xqiN,Jl,rg)))
+            xiN = xq_traj[(i*self.n_xi*(self.N+1)+self.n_xi*self.N):(i*self.n_xi*(self.N+1)+self.n_xi*(self.N+1))]
+            xqiN[self.n_xi*i:self.n_xi*(i+1)]=xiN
+        self.acados_solver_ql.set(self.N,'p',np.concatenate((ref_xlN,ref_ul,Para_l,xqiN,Jl,rg)))
 
         # set the initial condition to be aligned with the current feedback
         self.acados_solver_ql.set(0,'lbx',np.array(xl_fb))
@@ -1028,15 +1057,36 @@ class MPC:
             NO_SOLUTION_FLAG = True
         
         ##--------take the optimal control and state sequences-------##
+        statel_traj_opt   = np.zeros((self.N+1,self.n_xl))
+        controll_traj_opt = np.zeros((self.N,self.n_ul))
         for k in range(self.N):
 
-            self.statel_traj_opt[k:k+1,:] = np.reshape(self.acados_solver_ql.get(k,'x'),(1,self.n_xl))
-            self.controll_traj_opt[k:k+1,:]=np.reshape(self.acados_solver_ql.get(k,'u'),(1,self.n_ul))
-        self.statel_traj_opt[self.N:self.N+1,:] = np.reshape(self.acados_solver_ql.get(self.N,'x'),(1,self.n_xl))
+            statel_traj_opt[k:k+1,:] = np.reshape(self.acados_solver_ql.get(k,'x'),(1,self.n_xl))
+            controll_traj_opt[k:k+1,:]=np.reshape(self.acados_solver_ql.get(k,'u'),(1,self.n_ul))
+        statel_traj_opt[self.N:self.N+1,:] = np.reshape(self.acados_solver_ql.get(self.N,'x'),(1,self.n_xl))
+
+        ##--------compute Lagrangian multipliers from KKT conditions---------##
+        costatel_traj_opt = numpy.zeros((self.N, self.n_xl))
+        costatel_traj_opt[self.N-1:self.N,:] = np.reshape(self.dJlN_fn(xl0=statel_traj_opt[-1,:], xq0=np.transpose(np.reshape(xqiN,(self.nq,self.n_xi))), refxl0=ref_xlN, paral0=Para_l)['dJlNf'].full(),(1,self.n_xl))
+        for k in range(self.N-1,0,-1):
+            xl_curr   = statel_traj_opt[k,:]
+            ul_curr   = controll_traj_opt[k,:]
+            lambda_c  = np.reshape(costatel_traj_opt[k,:],(self.n_xl,1))
+            ref_xl = Ref_xl[k*self.n_xl:(k+1)*self.n_xl]
+            ref_ul = Ref_ul[k*self.n_ul:(k+1)*self.n_ul]
+            xqi    = np.zeros(self.n_xi*self.nq)
+            for i in range(self.nq):
+                xi = xq_traj[(i*self.n_xi*(self.N+1)+self.n_xi*k):(i*self.n_xi*(self.N+1)+self.n_xi*(k+1))]
+                xqi[self.n_xi*i:self.n_xi*(i+1)] = xi
+            dcdx_k    = np.reshape(self.dJlk_fn(xl0=xl_curr, ul0=ul_curr, xq0=np.transpose(np.reshape(xqi,(self.nq,self.n_xi))), refxl0=ref_xl, reful0=ref_ul, paral0=Para_l)['dJlkf'].full(),(self.n_xl,1))
+            dfdx_k    = self.Fcl_fn(xl0=xl_curr, ul0=ul_curr, xq0=np.transpose(np.reshape(xqi,(self.nq,self.n_xi))), Jl0=Jl,rg0=rg)['Flf'].full()
+            lambda_pre= dcdx_k + dfdx_k.T@lambda_c
+            costatel_traj_opt[(k-1):k,:] = lambda_pre.T
 
         # output
-        opt_soll = {"xl_opt": self.statel_traj_opt,
-                    "ul_opt":self.controll_traj_opt}
+        opt_soll = {"xl_opt": statel_traj_opt,
+                    "ul_opt": controll_traj_opt,
+                    "costatel_opt": costatel_traj_opt}
         
         return opt_soll
 
@@ -1110,10 +1160,10 @@ class MPC:
                         xq_i[kj*2*(self.N+1):(kj+1)*2*(self.N+1)] = xqj_xy
                         kj += 1
                 uli_traj    = np.reshape(ul_traj[:,i],self.N)
-                opt_sol_i   = self.MPCsolverQuadrotor_acados(xi_fb, xq_i, xl_trajh, uli_traj, ref_xi, ref_ui, Para_i, i, ke)
+                opt_sol_i   = self.MPCsolverQuadrotor_acados(xi_fb, xq_i, xl_trajh, uli_traj, ref_xi, ref_ui, Para_i, i)
                 xi_opt      = np.array(opt_sol_i['xi_opt'])
                 ui_opt      = np.array(opt_sol_i['ui_opt'])
-                # cox_opt_i   = opt_sol_i['costate_traj_opt']
+                cox_opt_i   = opt_sol_i['costatei_opt']
                 # cox_ipopt_i = opt_sol_i['costate_ipopt']
                 sum_viol_xi = 0
                 sum_viol_ui = 0
@@ -1139,7 +1189,7 @@ class MPC:
                 # xq_traj[i] = xi_opt
                 # uq_traj[i] = ui_opt
                 # save costate trajectories
-                # cx_quad += [cox_ipopt_i]
+                cx_quad += [cox_opt_i]
                 
             # update the quadrotors' trajectories
             xq_traj  = xq_temp
@@ -1160,11 +1210,11 @@ class MPC:
                 ref_ul[k*self.n_ul:(k+1)*self.n_ul] = ref_ulk
             ref_xl[self.N*self.n_xl:(self.N+1)*self.n_xl]=np.reshape(Ref_xl[:,self.N],self.n_xl)
             Para_lh     = np.reshape(Para_l,self.n_pl)
-            xq_h        = np.zeros(self.nq*3*(self.N+1))
+            xq_h        = np.zeros(self.nq*self.n_xi*(self.N+1))
             for j in range(self.nq):
                 xq_j    = xq_traj[j]
-                xq_jp   = np.reshape(xq_j[:,0:3],3*(self.N+1))
-                xq_h[j*3*(self.N+1):(j+1)*3*(self.N+1)]=xq_jp
+                xq_jp   = np.reshape(xq_j,self.n_xi*(self.N+1)) # row-by-row
+                xq_h[j*self.n_xi*(self.N+1):(j+1)*self.n_xi*(self.N+1)]=xq_jp
             Jlh         = np.reshape(Jl,3)
             rgh         = np.reshape(rg,3)
             # Parameter_l = np.hstack((xl_fbh,ref_xl,ref_ul,Para_lh,xq_h,Jlh,rgh))
@@ -1172,7 +1222,7 @@ class MPC:
             opt_sol_l   = self.MPCsolverPayload_acados(xl_fbh, xq_h, ref_xl, ref_ul, Para_lh, Jlh, rgh)
             xl_opt      = np.array(opt_sol_l['xl_opt'])
             ul_opt      = np.array(opt_sol_l['ul_opt'])
-            # cox_opt_l   = opt_sol_l['costatel_traj_opt']
+            cox_opt_l   = opt_sol_l['costatel_opt']
             # cox_ipopt_l = opt_sol_l['costatel_ipopt']
             # Ref_add     = ul_opt # update the addition using the optimized cable force
             sum_viol_xl = 0
@@ -1206,15 +1256,18 @@ class MPC:
         opt_system = {"xq_traj":xq_traj,
                       "uq_traj":uq_traj,
                       "xl_traj":xl_traj,
-                      "ul_traj":ul_traj
+                      "ul_traj":ul_traj,
+                      "cx_quad":cx_quad,
+                      "cx_load":cox_opt_l
                       }
         
         return opt_system
+    
         
-    def DiffKKT_quadrotor(self, index):
+    def DiffKKT_quadrotor(self):
         assert hasattr(self, 'xi'), "Define the quadrotor's state variable first!"
         assert hasattr(self, 'ui'), "Define the quadrotor's contrl variable first!"
-        self.SetConstraints_Qaudrotor()
+        
         # define co-state variables
         self.costate    = SX.sym('cs', self.n_xi,1) # defined for completeness, not used in actual computation of all coefficient matrices
         self.next_cs    = SX.sym('cs_next', self.n_xi,1)
@@ -1223,7 +1276,7 @@ class MPC:
         self.x_init     = SX.sym('x_init', self.n_xi,1)
         
         # define the Lagrangain
-        self.L0         = self.Ji_k + self.gui_lb + self.gui_ub + self.next_cs.T@self.Modeli + self.costate.T@(self.x_init - self.xi)         # k=0
+        self.L0         = self.Ji_k + self.gui_lb + self.gui_ub + self.hc_k + self.gq_k + self.next_cs.T@self.Modeli + self.costate.T@(self.x_init - self.xi)         # k=0
         self.Lk         = self.Ji_k + self.gui_lb + self.gui_ub + self.hc_k + self.gq_k + self.next_cs.T@self.Modeli - self.costate.T@self.xi  # k=1,...,N-1 
         self.LN         = self.Ji_N + self.hc_k + self.gq_k - self.costate.T@self.xi                                                        # k=N
 
@@ -1237,9 +1290,7 @@ class MPC:
         self.E_xl0      = jacobian(self.Modeli, self.xl) # used at k=0 only for beta = xl_init
         self.E_xl0_fn   = Function('E_xl',[self.xi, self.ui, self.xl, self.ti, self.ind_q],[self.E_xl0],['xi0', 'ui0', 'xl0', 'ti0', 'i0'],['E_xlf'])
         self.E_xlk      = np.zeros((self.n_xi, self.n_xl)) # used at k=1,...,N-1 for beta = xl_init
-        self.ei         = jacobian(self.ul[index,0],self.ul) 
-        self.E_ul0      = jacobian(self.Modeli, self.ti)@self.ei # used at k=0 only for beta = ul_0
-        self.E_ul0_fn   = Function('E_ul',[self.xi, self.ui, self.xl, self.ti, self.ind_q],[self.E_ul0],['xi0', 'ui0', 'xl0', 'ti0', 'i0'],['E_ulf'])
+        
         self.E_ulk      = np.zeros((self.n_xi, self.n_ul)) # used at k=1,...,N-1 for beta = ul_0
 
         # first-order derivative of L0 (initial Lagrangain) k=0
@@ -1257,63 +1308,57 @@ class MPC:
         second-order derivative of L0
         """
         self.ddL0xx     = jacobian(self.dL0x, self.xi)
-        self.ddL0xx_fn  = Function('ddL0xx',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0xx], 
-                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'refxi0', 'refui0', 'parai0'], ['ddL0xxf'])
+        self.ddL0xx_fn  = Function('ddL0xx',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0xx], 
+                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddL0xxf'])
         self.ddL0xu     = jacobian(self.dL0x, self.ui)
-        self.ddL0xu_fn  = Function('ddL0xu',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0xu], 
-                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'refxi0', 'refui0', 'parai0'], ['ddL0xuf'])
+        self.ddL0xu_fn  = Function('ddL0xu',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0xu], 
+                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddL0xuf'])
         self.ddL0ux     = jacobian(self.dL0u, self.xi)
-        self.ddL0ux_fn  = Function('ddL0ux',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0ux], 
-                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'refxi0', 'refui0', 'parai0'], ['ddL0uxf'])
+        self.ddL0ux_fn  = Function('ddL0ux',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0ux], 
+                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddL0uxf'])
         self.ddL0uu     = jacobian(self.dL0u, self.ui)
-        self.ddL0uu_fn  = Function('ddL0uu',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0uu], 
-                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'refxi0', 'refui0', 'parai0'], ['ddL0uuf'])
+        self.ddL0uu_fn  = Function('ddL0uu',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0uu], 
+                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddL0uuf'])
         # when beta = weighting matrices (theta), denoted by 'p' in the code
         self.ddL0xp     = jacobian(self.dL0x, self.para_i)  
-        self.ddL0xp_fn  = Function('ddL0xp',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0xp], 
-                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'refxi0', 'refui0', 'parai0'], ['ddL0xpf'])
+        self.ddL0xp_fn  = Function('ddL0xp',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0xp], 
+                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddL0xpf'])
         self.ddL0up     = jacobian(self.dL0u, self.para_i)
-        self.ddL0up_fn  = Function('ddL0up',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0up], 
-                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'refxi0', 'refui0', 'parai0'], ['ddL0upf'])
+        self.ddL0up_fn  = Function('ddL0up',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0up], 
+                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddL0upf'])
         # when beta = xi_init, denoted by 'xi' in the code
         self.ddL0xxi    = np.zeros((self.n_xi, self.n_xi)) 
         self.ddL0uxi    = np.zeros((self.n_ui, self.n_xi)) 
         # when beta = xl_init, denoted by 'xl' in the code
         self.ddL0xxl    = jacobian(self.dL0x, self.xl) 
-        self.ddL0xxl_fn = Function('ddL0xxl',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0xxl], 
-                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'refxi0', 'refui0', 'parai0'], ['ddL0xxlf'])
+        self.ddL0xxl_fn = Function('ddL0xxl',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0xxl], 
+                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddL0xxlf'])
         self.ddL0uxl    = jacobian(self.dL0u, self.xl)
-        self.ddL0uxl_fn = Function('ddL0uxl',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0uxl], 
-                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'refxi0', 'refui0', 'parai0'], ['ddL0uxlf'])
-        # when beta = ul_0, denoted by 'ul' in the code
-        self.ddL0xul    = jacobian(self.dL0x, self.ti)@self.ei
-        self.ddL0xul_fn = Function('ddL0xti',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0xul], 
-                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'refxi0', 'refui0', 'parai0'], ['ddL0xulf'])
-        self.ddL0uul    = jacobian(self.dL0u, self.ti)@self.ei 
-        self.ddL0uul_fn = Function('ddL0uti',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0uul], 
-                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'refxi0', 'refui0', 'parai0'], ['ddL0uulf'])
+        self.ddL0uxl_fn = Function('ddL0uxl',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0uxl], 
+                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddL0uxlf'])
+        
         
         """
         second-order derivative of Lk, k=1,...,N-1
         """
         self.ddLkxx     = jacobian(self.dLkx, self.xi)
-        self.ddLkxx_fn  = Function('ddLkxx',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.xq, self.ref_xi, self.ref_ui, self.para_i], [self.ddLkxx], 
+        self.ddLkxx_fn  = Function('ddLkxx',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddLkxx], 
                                    ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddLkxxf'])
         self.ddLkxu     = jacobian(self.dLkx, self.ui)
-        self.ddLkxu_fn  = Function('ddL0xu',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.xq, self.ref_xi, self.ref_ui, self.para_i], [self.ddLkxu], 
+        self.ddLkxu_fn  = Function('ddL0xu',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddLkxu], 
                                    ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddLkxuf'])
         self.ddLkux     = jacobian(self.dLku, self.xi)
-        self.ddLkux_fn  = Function('ddL0ux',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.xq, self.ref_xi, self.ref_ui, self.para_i], [self.ddLkux], 
+        self.ddLkux_fn  = Function('ddL0ux',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddLkux], 
                                    ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddLkuxf'])
         self.ddLkuu     = jacobian(self.dLku, self.ui)
-        self.ddLkuu_fn  = Function('ddL0uu',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.xq, self.ref_xi, self.ref_ui, self.para_i], [self.ddLkuu], 
+        self.ddLkuu_fn  = Function('ddL0uu',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddLkuu], 
                                    ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddLkuuf'])
         # when beta = weighting matrices (theta), denoted by 'p' in the code
         self.ddLkxp     = jacobian(self.dLkx, self.para_i)  
-        self.ddLkxp_fn  = Function('ddLkxp',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.xq, self.ref_xi, self.ref_ui, self.para_i], [self.ddLkxp], 
+        self.ddLkxp_fn  = Function('ddLkxp',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddLkxp], 
                                    ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddLkxpf'])
         self.ddLkup     = jacobian(self.dLku, self.para_i)
-        self.ddLkup_fn  = Function('ddLkup',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.xq, self.ref_xi, self.ref_ui, self.para_i], [self.ddLkup], 
+        self.ddLkup_fn  = Function('ddLkup',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddLkup], 
                                    ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddLkupf'])
         # when beta = xi_init, denoted by 'xi' in the code
         self.ddLkxxi    = np.zeros((self.n_xi, self.n_xi))
@@ -1329,12 +1374,12 @@ class MPC:
         second-order derivative of LN
         """ 
         self.ddLNxx     = jacobian(self.dLNx, self.xi)
-        self.ddLNxx_fn  = Function('ddLNxx',[self.xi, self.xl, self.xq, self.ref_xi, self.para_i], [self.ddLNxx],
-                                   ['xi0', 'xl0', 'xq0', 'refxi0', 'parai0'], ['ddLNxxf'])
+        self.ddLNxx_fn  = Function('ddLNxx',[self.xi, self.xl, self.x_qi, self.ref_xi, self.para_i, self.ind_q], [self.ddLNxx],
+                                   ['xi0', 'xl0', 'xq0', 'refxi0', 'parai0', 'i0'], ['ddLNxxf'])
         # when beta = weighting matrices (theta), denoted by 'p' in the code
         self.ddLNxp     = jacobian(self.dLNx, self.para_i)
-        self.ddLNxp_fn  = Function('ddLNxp',[self.xi, self.xl, self.xq, self.ref_xi, self.para_i], [self.ddLNxp],
-                                   ['xi0', 'xl0', 'xq0', 'refxi0', 'parai0'], ['ddLNxpf'])
+        self.ddLNxp_fn  = Function('ddLNxp',[self.xi, self.xl, self.x_qi, self.ref_xi, self.para_i, self.ind_q],  [self.ddLNxp],
+                                   ['xi0', 'xl0', 'xq0', 'refxi0', 'parai0', 'i0'], ['ddLNxpf'])
         # when beta = xi_init, denoted by 'xi' in the code
         self.ddLNxxi    = np.zeros((self.n_xi, self.n_xi))
         # when beta = xl_init, denoted by 'xl' in the code
@@ -1344,8 +1389,16 @@ class MPC:
         
 
     def GetAuxSys_quadrotor(self, index, xq_traj, uq_traj, xl_traj, ul_traj, cx_quad_traj, Ref_xq, Ref_uq, CTRL_gain):
-        self.DiffKKT_quadrotor(index)
-
+        self.ei         = jacobian(self.ul[index,0],self.ul) 
+        self.E_ul0      = jacobian(self.Modeli, self.ti)@self.ei # used at k=0 only for beta = ul_0
+        self.E_ul0_fn   = Function('E_ul',[self.xi, self.ui, self.xl, self.ti, self.ind_q],[self.E_ul0],['xi0', 'ui0', 'xl0', 'ti0', 'i0'],['E_ulf'])
+        # when beta = ul_0, denoted by 'ul' in the code
+        self.ddL0xul    = jacobian(self.dL0x, self.ti)@self.ei
+        self.ddL0xul_fn = Function('ddL0xti',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0xul], 
+                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddL0xulf'])
+        self.ddL0uul    = jacobian(self.dL0u, self.ti)@self.ei 
+        self.ddL0uul_fn = Function('ddL0uti',[self.xi, self.ui, self.xl, self.ti, self.ind_q, self.next_cs, self.x_qi, self.ref_xi, self.ref_ui, self.para_i], [self.ddL0uul], 
+                                   ['xi0', 'ui0', 'xl0', 'ti0', 'i0', 'cs_n', 'xq0', 'refxi0', 'refui0', 'parai0'], ['ddL0uulf'])
         # initialize the coefficient matrices of the auxiliary MPC system
         matF, matG = [], []
         matE_p, matE_xi, matE_xl, matE_ul = [], [], [], []
@@ -1361,10 +1414,13 @@ class MPC:
             next_cs   = cx_quad_traj[index][k,:] # we store the costate from k=1 to k=N, excluding the first costate at k=0. So, costate[k,:] is the next costate relative to the current timestep
             curr_xl   = xl_traj[k,:]
             curr_ti   = ul_traj[k,index]
-            curr_xq   = np.zeros((self.n_xi,self.nq))
-            for i in range(self.nq):
-                xi_opt      = xq_traj[i]
-                curr_xq[:,i:i+1] = np.reshape(xi_opt[k,:],(self.n_xi,1))
+            curr_xq   = np.zeros((2,self.nq-1))
+            kj        = 0
+            for j in range(self.nq):
+                if j!=index:
+                    xj_opt      = xq_traj[j]
+                    curr_xq[:,kj:kj+1] = np.reshape(xj_opt[k,0:2],(2,1))
+                    kj         += 1
             curr_refx = Ref_xq[index][:,k]
             curr_refu = Ref_uq[index][:,k]
             matF      += [self.F_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index)['Ff'].full()] # the first element will be used in the sensitivity propagation
@@ -1374,18 +1430,18 @@ class MPC:
             if k == 0:
                 matE_xl     += [self.E_xl0_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index)['E_xlf'].full()]
                 matE_ul     += [self.E_ul0_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index)['E_ulf'].full()]
-                matLxx      += [self.ddL0xx_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0xxf'].full()]
-                matLxu      += [self.ddL0xu_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0xuf'].full()]
-                matLux      += [self.ddL0ux_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0uxf'].full()]
-                matLuu      += [self.ddL0uu_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0uuf'].full()]
-                matLxp      += [self.ddL0xp_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0xpf'].full()]            
-                matLup      += [self.ddL0up_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0upf'].full()]
+                matLxx      += [self.ddL0xx_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,xq0=curr_xq,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0xxf'].full()]
+                matLxu      += [self.ddL0xu_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,xq0=curr_xq,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0xuf'].full()]
+                matLux      += [self.ddL0ux_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,xq0=curr_xq,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0uxf'].full()]
+                matLuu      += [self.ddL0uu_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,xq0=curr_xq,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0uuf'].full()]
+                matLxp      += [self.ddL0xp_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,xq0=curr_xq,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0xpf'].full()]            
+                matLup      += [self.ddL0up_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,xq0=curr_xq,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0upf'].full()]
                 matLxxi     += [self.ddL0xxi]
                 matLuxi     += [self.ddL0uxi]
-                matLxxl     += [self.ddL0xxl_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0xxlf'].full()]
-                matLuxl     += [self.ddL0uxl_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0uxlf'].full()]
-                matLxul     += [self.ddL0xul_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0xulf'].full()]
-                matLuul     += [self.ddL0uul_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0uulf'].full()]
+                matLxxl     += [self.ddL0xxl_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,xq0=curr_xq,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0xxlf'].full()]
+                matLuxl     += [self.ddL0uxl_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,xq0=curr_xq,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0uxlf'].full()]
+                matLxul     += [self.ddL0xul_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,xq0=curr_xq,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0xulf'].full()]
+                matLuul     += [self.ddL0uul_fn(xi0=curr_x,ui0=curr_u,xl0=curr_xl,ti0=curr_ti,i0=index,cs_n=next_cs,xq0=curr_xq,refxi0=curr_refx,refui0=curr_refu,parai0=Para_i)['ddL0uulf'].full()]
             else:
                 matE_xl     += [self.E_xlk]
                 matE_ul     += [self.E_ulk]
@@ -1403,13 +1459,16 @@ class MPC:
                 matLuul     += [self.ddLkuul]
         curr_x   = xq_traj[index][-1,:]
         curr_xl  = xl_traj[-1,:]
-        curr_xq   = np.zeros((self.n_xi,self.nq))
-        for i in range(self.nq):
-            xi_opt      = xq_traj[i]
-            curr_xq[:,i:i+1] = np.reshape(xi_opt[-1,:],(self.n_xi,1))
+        curr_xq  = np.zeros((2,self.nq-1))
+        kj       = 0
+        for j in range(self.nq):
+            if j!=index:
+                xj_opt      = xq_traj[j]
+                curr_xq[:,kj:kj+1] = np.reshape(xj_opt[-1,0:2],(2,1))
+                kj         += 1
         curr_refx = Ref_xq[index][:,-1]
-        matLxx     += [self.ddLNxx_fn(xi0=curr_x,xl0=curr_xl,xq0=curr_xq,refxi0=curr_refx,parai0=Para_i)['ddLNxxf'].full()]
-        matLxp     += [self.ddLNxp_fn(xi0=curr_x,xl0=curr_xl,xq0=curr_xq,refxi0=curr_refx,parai0=Para_i)['ddLNxpf'].full()]
+        matLxx     += [self.ddLNxx_fn(xi0=curr_x,xl0=curr_xl,xq0=curr_xq,refxi0=curr_refx,parai0=Para_i,i0=index)['ddLNxxf'].full()]
+        matLxp     += [self.ddLNxp_fn(xi0=curr_x,xl0=curr_xl,xq0=curr_xq,refxi0=curr_refx,parai0=Para_i,i0=index)['ddLNxpf'].full()]
         matLxxi    += [self.ddLNxxi]
         matLxxl    += [self.ddLNxxl]
         matLxul    += [self.ddLNxul]
@@ -1437,7 +1496,7 @@ class MPC:
         
         
 
-    def DiffKKT_payload(self, index):
+    def DiffKKT_payload(self):
         assert hasattr(self, 'xl'), "Define the payload's state variable first!"
         assert hasattr(self, 'ul'), "Define the payload's contrl variable first!"
         # define co-state variables
@@ -1448,7 +1507,7 @@ class MPC:
         self.xl_init    = SX.sym('xl_init', self.n_xl,1)
 
         # define the Lagrangain
-        self.Ll0        = self.Jl_k + self.gul_lb + self.gul_ub + self.next_csl.T@self.Modell + self.costatel.T@(self.xl_init - self.xl)  # k=0
+        self.Ll0        = self.Jl_k + self.gul_lb + self.gul_ub + self.hl_k + self.next_csl.T@self.Modell + self.costatel.T@(self.xl_init - self.xl)  # k=0
         self.Llk        = self.Jl_k + self.gul_lb + self.gul_ub + self.hl_k + self.next_csl.T@self.Modell - self.costatel.T@self.xl       # k=1,...,N-1
         self.LlN        = self.Jl_N + self.hl_k - self.costatel.T@self.xl 
 
@@ -1459,8 +1518,7 @@ class MPC:
         self.Gl_fn      = Function('Gl',[self.xl, self.ul, self.xq, self.loadp], [self.Gl], ['xl0', 'ul0', 'xq0', 'loadp0'], ['Glf'])
         self.El_p       = np.zeros((self.n_xl, self.n_pl)) # used at k=0,...,N-1 for beta = weighting matrices (thetal)
         self.El_xl0     = np.zeros((self.n_xl, self.n_xl)) # used at k=0,...,N-1 for beta = xl_init
-        self.El_xi0     = jacobian(self.Modell, self.xq[:,index]) # used at k=0 only for beta = xi_init
-        self.El_xi0_fn  = Function('El_xi0',[self.xl, self.ul, self.xq, self.loadp], [self.El_xi0], ['xl0', 'ul0', 'xq0', 'loadp0'], ['El_xi0f'])
+        
         self.El_xik     = np.zeros((self.n_xl, self.n_xi)) # used at k=1,...,N-1 for beta = xi_init
         self.El_lp      = jacobian(self.Modell, self.loadp) # used at k=0,...,N-1 for beta = load's inertial parameters (thetap)
         self.El_lp_fn   = Function('El_lp',[self.xl, self.ul, self.xq, self.loadp], [self.El_lp], ['xl0', 'ul0', 'xq0', 'loadp0'], ['El_lpf'])
@@ -1501,13 +1559,7 @@ class MPC:
         # when beta = xl_init, denoted by 'xl' in the code
         self.ddLl0xxl   = np.zeros((self.n_xl, self.n_xl))
         self.ddLl0uxl   = np.zeros((self.n_ul, self.n_xl))
-        # when beta = xi_init, denoted by 'xi' in the code
-        self.ddLl0xxi   = jacobian(self.dLl0x, self.xq[:,index])
-        self.ddLl0xxi_fn= Function('ddLl0xxi',[self.xl, self.ul, self.xq, self.next_csl, self.ref_xl, self.ref_ul, self.loadp, self.para_l], [self.ddLl0xxi],
-                                   ['xl0', 'ul0', 'xq0', 'csl_n', 'refxl0', 'reful0', 'loadp0', 'paral0'], ['ddLl0xxif'])
-        self.ddLl0uxi   = jacobian(self.dLl0u, self.xq[:,index])
-        self.ddLl0uxi_fn= Function('ddLl0uxi',[self.xl, self.ul, self.xq, self.next_csl, self.ref_xl, self.ref_ul, self.loadp, self.para_l], [self.ddLl0uxi],
-                                   ['xl0', 'ul0', 'xq0', 'csl_n', 'refxl0', 'reful0', 'loadp0', 'paral0'], ['ddLl0uxif'])
+        
         # when beta = load's inertial parameters, denoted by 'lp' in the code
         self.ddLl0xlp   = jacobian(self.dLl0x, self.loadp)
         self.ddLl0xlp_fn= Function('ddLl0xlp',[self.xl, self.ul, self.xq, self.next_csl, self.ref_xl, self.ref_ul, self.loadp, self.para_l], [self.ddLl0xlp],
@@ -1568,8 +1620,17 @@ class MPC:
 
 
     def GetAuxSys_payload(self, index, xl_traj, ul_traj, xq_traj, cx_load_traj, Ref_xl, Ref_ul, Para_l, loadp):
-        self.DiffKKT_payload(index)
 
+        self.El_xi0     = jacobian(self.Modell, self.xq[:,index]) # used at k=0 only for beta = xi_init
+        self.El_xi0_fn  = Function('El_xi0',[self.xl, self.ul, self.xq, self.loadp], [self.El_xi0], ['xl0', 'ul0', 'xq0', 'loadp0'], ['El_xi0f'])
+        
+        # when beta = xi_init, denoted by 'xi' in the code
+        self.ddLl0xxi   = jacobian(self.dLl0x, self.xq[:,index])
+        self.ddLl0xxi_fn= Function('ddLl0xxi',[self.xl, self.ul, self.xq, self.next_csl, self.ref_xl, self.ref_ul, self.loadp, self.para_l], [self.ddLl0xxi],
+                                   ['xl0', 'ul0', 'xq0', 'csl_n', 'refxl0', 'reful0', 'loadp0', 'paral0'], ['ddLl0xxif'])
+        self.ddLl0uxi   = jacobian(self.dLl0u, self.xq[:,index])
+        self.ddLl0uxi_fn= Function('ddLl0uxi',[self.xl, self.ul, self.xq, self.next_csl, self.ref_xl, self.ref_ul, self.loadp, self.para_l], [self.ddLl0uxi],
+                                   ['xl0', 'ul0', 'xq0', 'csl_n', 'refxl0', 'reful0', 'loadp0', 'paral0'], ['ddLl0uxif'])
         # initialize the coefficient matrices of the payload's auxiliary MPC system
         matFl, matGl = [], []
         matEl_p, matEl_xl, matEl_xi, matEl_lp = [], [], [], []
@@ -1681,7 +1742,7 @@ class MPC_gradient: # compute the gradients of the MPC's solution trajectories w
         W_p      = self.N * [np.zeros((self.n_xi, self.n_pi))] # for beta = weighting matrices (denoted as 'p')
         W_xi     = self.N * [np.zeros((self.n_xi, self.n_xi))] # for beta = xi_init (denoted as 'xi')
         W_xl     = self.N * [np.zeros((self.n_xi, self.n_xl))] # for beta = xl_init (denoted as 'xl')
-        W_ul     = self.N * [np.zeros((self.n_xi, self.n_ul))] # for beta = (ul_0)i (denoted as 'ul')
+        W_ul     = self.N * [np.zeros((self.n_xi, self.n_ul))] # for beta = (ul_0) (denoted as 'ul')
         P[-1]    = matLxx[-1]
         W_p[-1]  = matLxp[-1]
         W_xi[-1] = matLxxi[-1]
@@ -1701,12 +1762,12 @@ class MPC_gradient: # compute the gradients of the MPC's solution trajectories w
             M_p_k     = matE_p[k] - GinvLuu@matLup[k]     # for beta = weighulng matrices (denoted as 'p')
             M_xi_k    = matE_xi[k] - GinvLuu@matLuxi[k]   # for beta = xi_init (denoted as 'xi')
             M_xl_k    = matE_xl[k] - GinvLuu@matLuxl[k]   # for beta = xl_init (denoted as 'xl')
-            M_ul_k    = matE_ul[k] - GinvLuu@matLuul[k]   # for beta = (ul_0)i (denoted as 'ul')
+            M_ul_k    = matE_ul[k] - GinvLuu@matLuul[k]   # for beta = (ul_0) (denoted as 'ul')
             Q_k       = matLxx[k] - LxuinvLuu@matLxu[k].T
             N_p_k     = matLxp[k] - LxuinvLuu@matLup[k]   # for beta = weighting matrices (denoted as 'p'), matLxp[0] is not used!
             N_xi_k    = matLxxi[k] - LxuinvLuu@matLuxi[k] # for beta = xi_init (denoted as 'xi')
             N_xl_k    = matLxxl[k] - LxuinvLuu@matLuxl[k] # for beta = xl_init (denoted as 'xl')
-            N_ul_k    = matLxul[k] - LxuinvLuu@matLuul[k] # for beta = (ul_0)i (denoted as 'ul')
+            N_ul_k    = matLxul[k] - LxuinvLuu@matLuul[k] # for beta = (ul_0) (denoted as 'ul')
             temp_mat  = A_k.T@P_next@LA.inv(I + R_k@P_next)
             P_curr    = Q_k + temp_mat@A_k
             W_p_curr  = temp_mat@(M_p_k - R_k@W_p_next) + A_k.T@W_p_next + N_p_k
@@ -1800,6 +1861,7 @@ class MPC_gradient: # compute the gradients of the MPC's solution trajectories w
        
         return X_p
     
+
     def Gradient_solver_payload_2_quadi(self,auxSysl): # relative to the ith quadrotor
         matFl, matGl = auxSysl['matFl'], auxSysl['matGl']
         matEl_p, matEl_xi, matEl_xl, matEl_lp = auxSysl['matEl_p'], auxSysl['matEl_xi'], auxSysl['matEl_xl'], auxSysl['matEl_lp']
@@ -1954,7 +2016,7 @@ class Sensitivity_propagation: # compute the sensitivities (gradients) of the ac
         self.refxi   = SX.sym('refxi',6,1) # reference position and velocity of the i-th quadrotor
         self.refxl   = SX.sym('refxl',self.n_xl,1) # reference state of the load
         weight_hl_i  = 5e3*np.array([1,1,1, 1,1,1]) # weight for the high-level loss function for the i-th quadrotor
-        weight_hl_l  = 2e4*np.array([1,1,2, 1,1,1, 5,5,5, 10,10,1]) # weight for the high-level loss function for the load
+        weight_hl_l  = 2e4*np.array([1,1,2, 1,1,1.25, 5,5,5, 10,10,1]) # weight for the high-level loss function for the load
         self.error_i = self.pvi - self.refxi
         p_error_l    = self.xl[0:3,0] - self.refxl[0:3,0]
         v_error_l    = self.xl[3:6,0] - self.refxl[3:6,0]
@@ -2027,49 +2089,24 @@ class Sensitivity_propagation: # compute the sensitivities (gradients) of the ac
                             }
         return quad_sensitivity, sumXi_pl
     
-
     
-    def quadrotor_sensitivity_parallel(self, Quads_Mat, Load_Mat, Xl_pl, index):
+    def quadrotor_sensitivity_nocoupling(self, Quads_Mat, Load_Mat, index):
         # define the sensitivity trajectories, starting with zero matrices (the sensitivities of the actual states w.r.t the parameters are all zeros!)
         Xi_pi       = (self.N_loss+1)*[np.zeros((self.n_xi, self.n_pi))] # X^i_pi: the gradient of the i-th quadrotor's state w.r.t its MPC's weighting matrices
-        Xi_pl       = (self.N_loss+1)*[np.zeros((self.n_xi, self.n_pl))] # X^i_pl: the gradient of the i-th quadrotor's state w.r.t the payload MPC's weighting matrices
-        Xl_pi       = (self.N_loss+1)*[np.zeros((self.n_xl, self.n_pi))] # X^l_pi: the gradient of the payload's state w.r.t the i-th quadrotor MPC's weighting matrices
-        FXi_pl      = (self.N_loss)*[np.zeros((self.n_xi, self.n_pi))] # list for saving the product dfldxi@Xi_pl[t]
-        
+
         for t in range(self.N_loss): # in a receding horizon manner, selecting the latest N_loss elements
             # select the first element (xxx_0) from the list, as it is generated using the current feedback from the actual systems
             Fi_t    = Quads_Mat[len(Quads_Mat)-self.N_loss+t][index]['Fi_0']
             Gi_t    = Quads_Mat[len(Quads_Mat)-self.N_loss+t][index]['Gi_0']
-            Ei_xl_t = Quads_Mat[len(Quads_Mat)-self.N_loss+t][index]['Ei_xl_0']
-            Ei_ul_t = Quads_Mat[len(Quads_Mat)-self.N_loss+t][index]['Ei_ul_0']
             Ui_xi_t = Quads_Mat[len(Quads_Mat)-self.N_loss+t][index]['Ui_xi_0']
-            Ui_xl_t = Quads_Mat[len(Quads_Mat)-self.N_loss+t][index]['Ui_xl_0']
-            Ui_ul_t = Quads_Mat[len(Quads_Mat)-self.N_loss+t][index]['Ui_ul_0']
             Ui_pi_t = Quads_Mat[len(Quads_Mat)-self.N_loss+t][index]['Ui_pi_0']
-            Fl_t    = Load_Mat[len(Load_Mat)-self.N_loss+t][index]['Fl_0']
-            Gl_t    = Load_Mat[len(Load_Mat)-self.N_loss+t][index]['Gl_0']
-            El_xi_t = Load_Mat[len(Load_Mat)-self.N_loss+t][index]['El_xi_0']
-            Ul_xi_t = Load_Mat[len(Load_Mat)-self.N_loss+t][index]['Ul_xi_0']
-            Ul_xl_t = Load_Mat[len(Load_Mat)-self.N_loss+t][index]['Ul_xl_0']
-            Ul_pl_t = Load_Mat[len(Load_Mat)-self.N_loss+t][index]['Ul_pl_0']
+            
             # compute the system matrices for the sensitivity propagation
-            dfidxi  = Fi_t + Gi_t@(Ui_xi_t + Ui_ul_t@Ul_xi_t) + Ei_ul_t@Ul_xi_t
-            dfidxl  = Ei_xl_t + Gi_t@(Ui_xl_t + Ui_ul_t@Ul_xl_t) + Ei_ul_t@Ul_xl_t
-            dfidul  = Gi_t@Ui_ul_t + Ei_ul_t
-            dfldxl  = Fl_t + Gl_t@Ul_xl_t
-            dfldxi  = El_xi_t + Gl_t@Ul_xi_t
+            dfidxi  = Fi_t + Gi_t@Ui_xi_t
             # sensitivity propagation
-            Xi_pi[t+1] = dfidxi@Xi_pi[t] + dfidxl@Xl_pi[t] + Gi_t@Ui_pi_t
-            Xi_pl[t+1] = dfidxi@Xi_pl[t] + dfidxl@Xl_pl[t] + dfidul@Ul_pl_t
-            Xl_pi[t+1] = dfldxl@Xl_pi[t] + dfldxi@Xi_pi[t]
-            FXi_pl[t]  = dfldxi@Xi_pl[t]
-        
-        quad_sensitivity = {"Xi_pi": Xi_pi,
-                            "Xi_pl": Xi_pl,
-                            "Xl_pi": Xl_pi,
-                            "FXi_pl":FXi_pl
-                            }
-        return quad_sensitivity
+            Xi_pi[t+1] = dfidxi@Xi_pi[t] + Gi_t@Ui_pi_t
+                            
+        return Xi_pi
     
     
     def payload_sensitivity(self, Load_Mat, sumXi_pl):
@@ -2089,9 +2126,27 @@ class Sensitivity_propagation: # compute the sensitivities (gradients) of the ac
             
         return Xl_pl
     
+    
+    def payload_sensitivity_nocoupling(self, Load_Mat):
+        # define the sensitivity trajectory, starting with zero matrices (the sensitivities of the actual states w.r.t the parameters are all zeros!)
+        Xl_pl       = (self.N_loss+1)*[np.zeros((self.n_xl, self.n_pl))] # X^l_pl: the gradient of the payload's state w.r.t its MPC's weighting matrices
+        
+        for t in range(self.N_loss):
+            # the following jacobian matrices are independent of the quadrotor's index, so simply "0" is chosen
+            Fl_t    = Load_Mat[len(Load_Mat)-self.N_loss+t][0]['Fl_0']
+            Gl_t    = Load_Mat[len(Load_Mat)-self.N_loss+t][0]['Gl_0']
+            Ul_xl_t = Load_Mat[len(Load_Mat)-self.N_loss+t][0]['Ul_xl_0']
+            Ul_pl_t = Load_Mat[len(Load_Mat)-self.N_loss+t][0]['Ul_pl_0']
+            # compute the system matrices for the sensitivity propagation
+            dfldxl  = Fl_t + Gl_t@Ul_xl_t
+            # sensitivity propagation
+            Xl_pl[t+1] = dfldxl@Xl_pl[t] + Gl_t@Ul_pl_t
+            
+        return Xl_pl
+    
    
     def Distributed_sensitivity(self, Quads_Mat, Load_Mat):
-        epsilon = 1e-4    # threshold for stopping the iteration, 1e-4 for testing the convergence step, 1e-3 is used in training
+        epsilon = 1e-3    # threshold for stopping the iteration, 1e-4 for testing the convergence step, 1e-3 is used in training
         k_max   = 5      # maximum number of iterations
         max_violation = 5 # initial value of max_violation
         k = 1             # iteration index
@@ -2115,7 +2170,9 @@ class Sensitivity_propagation: # compute the sensitivities (gradients) of the ac
             sumXi_pl         = (self.N_loss)*[np.zeros((self.n_xl, self.n_pl))] # initialize sumXi_pl
             
             viol_X_list      = []
-            All_quad_sens    = [] # list for saving all the updated sensitivity trajectories during the 'for' loop
+            All_quad_sens_pi = [] # list for saving all the updated sensitivity trajectories during the 'for' loop
+            All_quad_sens_il = []
+            All_quad_sens_li = []
           
             for i in range(self.nq): # later, we will upgrade these iterations to parallel computing
                 quad_sensitivity, sumXi_pl = self.quadrotor_sensitivity(Quads_Mat, Load_Mat, Xl_pl, sumXi_pl,i)
@@ -2123,8 +2180,10 @@ class Sensitivity_propagation: # compute the sensitivities (gradients) of the ac
                 Xi_pl  = quad_sensitivity['Xi_pl']
                 Xl_pi  = quad_sensitivity['Xl_pi']
                 
-                All_quad_sens += [Xi_pi]
-               
+                All_quad_sens_pi += [Xi_pi]
+                All_quad_sens_il += [Xi_pl]
+                All_quad_sens_li += [Xl_pi]
+
                 sum_Xi_pi_viol = 0
                 sum_Xi_pl_viol = 0
                 sum_Xl_pi_viol = 0
@@ -2153,7 +2212,6 @@ class Sensitivity_propagation: # compute the sensitivities (gradients) of the ac
               
             viol_Xl_pl = sum_Xl_pl_viol/(self.N_loss+1)
             print('sensitivity: iteration-',k,'payload:','viol_Xl_pl=',format(viol_Xl_pl,'.5f'))
-            k_step = k
             viol_X_list += [viol_Xl_pl]
             # compute the maximum violation value
             if k>1:
@@ -2164,9 +2222,24 @@ class Sensitivity_propagation: # compute the sensitivities (gradients) of the ac
             # update the iteration number
             k += 1
 
-        return All_quad_sens, Xl_pl, k_step
+        return All_quad_sens_pi, All_quad_sens_il, All_quad_sens_li, Xl_pl
     
 
+    def Distributed_sensitivity_nocoupling(self, Quads_Mat, Load_Mat):
+        
+        All_quad_sens_pi = [] # list for saving all the updated sensitivity trajectories during the 'for' loop
+          
+          
+        for i in range(self.nq): # later, we will upgrade these iterations to parallel computing
+            Xi_pi = self.quadrotor_sensitivity_nocoupling(Quads_Mat, Load_Mat,i)     
+            All_quad_sens_pi += [Xi_pi]           
+            
+        # solve the sensitivity of the payload using the updated quadrotor trajectories sumXi_pl
+        Xl_pl  = self.payload_sensitivity_nocoupling(Load_Mat)
+            
+
+        return All_quad_sens_pi, Xl_pl
+    
     
     def loss_quadrotor(self, xi, refxi):
         # define the quadrotor's high-level loss function
@@ -2199,7 +2272,34 @@ class Sensitivity_propagation: # compute the sensitivities (gradients) of the ac
         return loss_l
 
     
-    def ChainRule_quadrotor_i(self, index, Quad_State, Ref_Quad, All_quad_sens):
+    def ChainRule_quadrotor_i(self, index, Quad_State, Ref_Quad, All_quad_sens_pi, All_quad_sens_il):
+        # define the gradient of loss_i w.r.t the state xi
+        dlids     = jacobian(self.loss_i, self.xi)
+        dlids_fn  = Function('dlids',[self.xi, self.refxi], [dlids], ['xi0','refxi0'], ['dlidsf'])
+        # initialize the parameter gradient
+        dpi       = np.zeros((1,self.n_pi))
+        dpil      = np.zeros((1,self.n_pl))
+        # initialize the high-level loss_i
+        loss_i    = 0
+        # select the corresponding sensitivity trajectroy from the list 'All_quad_sens'
+        Xi_pi     = All_quad_sens_pi[index] # for the i-th quadrotor
+        Xi_pl     = All_quad_sens_il[index]
+
+        for t in range(self.N_loss):
+            xi         = Quad_State[len(Quad_State)-self.N_loss+t][index]
+            refxi      = Ref_Quad[len(Ref_Quad)-self.N_loss+t][index]
+            loss_i_t   = self.loss_quadrotor(xi,refxi)
+            loss_i    += loss_i_t
+            Dlids      = dlids_fn(xi0=xi,refxi0=refxi)['dlidsf'].full()
+            Xi_pi_t1   = Xi_pi[t+1] # we skip the initial state at t=0, as its gradient w.r.t the weightings is zero!
+            dpi       += Dlids@Xi_pi_t1
+            Xi_pl_t1   = Xi_pl[t+1]
+            dpil      += Dlids@Xi_pl_t1
+           
+        return dpi, dpil, loss_i
+    
+    
+    def ChainRule_quadrotor_i_nocoupling(self, index, Quad_State, Ref_Quad, All_quad_sens_pi):
         # define the gradient of loss_i w.r.t the state xi
         dlids     = jacobian(self.loss_i, self.xi)
         dlids_fn  = Function('dlids',[self.xi, self.refxi], [dlids], ['xi0','refxi0'], ['dlidsf'])
@@ -2208,8 +2308,8 @@ class Sensitivity_propagation: # compute the sensitivities (gradients) of the ac
         # initialize the high-level loss_i
         loss_i    = 0
         # select the corresponding sensitivity trajectroy from the list 'All_quad_sens'
-        Xi_pi     = All_quad_sens[index] # for the i-th quadrotor
-        
+        Xi_pi     = All_quad_sens_pi[index] # for the i-th quadrotor
+
         for t in range(self.N_loss):
             xi         = Quad_State[len(Quad_State)-self.N_loss+t][index]
             refxi      = Ref_Quad[len(Ref_Quad)-self.N_loss+t][index]
@@ -2220,6 +2320,7 @@ class Sensitivity_propagation: # compute the sensitivities (gradients) of the ac
             dpi       += Dlids@Xi_pi_t1
            
         return dpi, loss_i
+    
     
     def ChainRule_quadrotor_i_openloop(self, index, Quad_State, Ref_Quad, xq_traj, Ref_xq, Xq_p):
         # define the gradient of loss_i w.r.t the state xi
@@ -2244,7 +2345,33 @@ class Sensitivity_propagation: # compute the sensitivities (gradients) of the ac
             dpi       += Dlids@Xi_pi_t1
         return dpi, loss_i
     
-    def ChainRule_load(self, Load_State, Ref_Load, Xl_pl):
+
+    def ChainRule_load(self, Load_State, Ref_Load, Xl_pl, All_quad_sens_li):
+        # define the gradient of loss_l w.r.t the state xl
+        dllds     = jacobian(self.loss_l, self.xl)
+        dllds_fn  = Function('dllds',[self.xl, self.refxl], [dllds], ['xl0','refxl0'], ['dlldsf'])
+        # initialize the parameter gradient
+        dpl       = np.zeros((1,self.n_pl))
+        Dli       = self.nq*[np.zeros((1,self.n_pi))]
+        # initialize the high-level loss_l
+        loss_l    = 0
+        for t in range(self.N_loss):
+            xl         = Load_State[len(Load_State)-self.N_loss+t] 
+            refxl      = Ref_Load[len(Ref_Load)-self.N_loss+t]
+            loss_l_t   = self.loss_load(xl,refxl)
+            loss_l    += loss_l_t
+            Dllds      = dllds_fn(xl0=xl,refxl0=refxl)['dlldsf'].full()
+            Xl_pl_t1   = Xl_pl[t+1] # we skip the initial state at t=0, as its gradient w.r.t the weightings is zero!
+            dpl       += Dllds@Xl_pl_t1
+            for i in range(self.nq):
+                Xl_pi  = All_quad_sens_li[i]
+                Xl_pi_t1 = Xl_pi[t+1]
+                Dli[i] = Dli[i] + Dllds@Xl_pi_t1
+           
+        return Dli, dpl,loss_l
+    
+
+    def ChainRule_load_nocoupling(self, Load_State, Ref_Load, Xl_pl):
         # define the gradient of loss_l w.r.t the state xl
         dllds     = jacobian(self.loss_l, self.xl)
         dllds_fn  = Function('dllds',[self.xl, self.refxl], [dllds], ['xl0','refxl0'], ['dlldsf'])
@@ -2260,8 +2387,9 @@ class Sensitivity_propagation: # compute the sensitivities (gradients) of the ac
             Dllds      = dllds_fn(xl0=xl,refxl0=refxl)['dlldsf'].full()
             Xl_pl_t1   = Xl_pl[t+1] # we skip the initial state at t=0, as its gradient w.r.t the weightings is zero!
             dpl       += Dllds@Xl_pl_t1
-           
+            
         return dpl,loss_l
+    
     
     def ChainRule_load_openloop(self, Load_State, Ref_Load, xl_traj, Ref_xl, Xl_pl):
         # define the gradient of loss_l w.r.t the state xl
@@ -2283,6 +2411,8 @@ class Sensitivity_propagation: # compute the sensitivities (gradients) of the ac
             Xl_pl_t1   = Xl_pl[t+1] # we skip the initial state at t=0, as its gradient w.r.t the weightings is zero!
             dpl       += Dllds@Xl_pl_t1
         return dpl, loss_l
+    
+
     
   
 

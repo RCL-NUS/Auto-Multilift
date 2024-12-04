@@ -29,9 +29,11 @@ class multilifting:
         self.S_rg   = self.skew_sym(self.rg)
         self.Jl     = diag(self.Jldiag) + self.ml* self.S_rg@self.S_rg.T # rotational inertia in the payload body frame {Bl}, obtained by the parallel axis theorem
         # Cable's parameters
-        self.K      = cable_para[0] # stiffness
-        self.ct     = cable_para[1] # damping coefficient
-        self.cl0    = cable_para[2] # cable natural length
+        self.E      = cable_para[0] # Young's modulus
+        self.A      = cable_para[1] # cross-section area
+        # self.K      = cable_para[0] # stiffness
+        self.ct     = cable_para[2] # damping coefficient
+        self.cl0    = cable_para[3] # cable natural length
         # Quadrotor's state and control
         self.pi     = SX.sym('pi',3,1) # position of CoM in the world frame {I}
         self.vi     = SX.sym('vi',3,1) # velocity of CoM in {I}
@@ -77,9 +79,9 @@ class multilifting:
         # Hurwitz matrix
         self.As    = SX.sym('As',3,3)
         #-----------Reference parameters--------------#
-        self.rc    = 3 # radius of the circle
-        self.Tc    = 20 # period of the circle
-        self.hc    = 1  # height of the circle
+        self.rc    = 3 # radius of the circle, 5 for testing
+        self.Tc    = 20 # period of the circle, 20 for evaluation, fig-8
+        self.hc    = 2  # height of the circle
         self.wc    = 2*np.pi/self.Tc # desired angular velocity of the circle reference
 
     def dir_cosine(self, Euler):
@@ -139,7 +141,8 @@ class multilifting:
     def tension_magnitude(self, L, dL):
         # L: stretched cable length 
         # dL: changing rate of the cable length
-        f_tc = self.K*(L-self.cl0) + self.ct*self.K*dL # computed tension magnitude
+        f_tc = self.E*self.A/self.cl0*(L-self.cl0)+ self.ct*self.E*self.A/self.cl0*dL # computed tension magnitude
+        # f_tc = self.K*(L-self.cl0)+ self.ct*self.K*dL # computed tension magnitude
         if f_tc < 0:
             f_t = 0
         elif f_tc > 2e2: # avoid any potentially unstable performance caused by an extremely large tension force
@@ -311,6 +314,7 @@ class multilifting:
         k3l     = self.payload_dyn(self.xl + self.dt/2*k2l, self.ul, self.xq, 0)
         k4l     = self.payload_dyn(self.xl + self.dt*k3l, self.ul, self.xq, 0)
         self.model_l = (k1l + 2*k2l + 2*k3l + k4l)/6
+        self.dynl      = k1l # load dynamics model used in Acados
         # Payload: dynamic model used in the step function (the time-step in simulation may be different from that used in MPC)
         self.dyn_l_fn = Function('k1l',[self.xl, self.ul, self.xq, self.Jldiag, self.rg], [k1l_normal], ['xl0', 'ul0', 'xq0', 'Jldiag0', 'rg0'], ['k1lf'])
 
@@ -322,6 +326,7 @@ class multilifting:
         k3i     = self.quadrotor_dyn(self.xi + self.dt/2*k2i, self.ui, self.xl, self.ti, self.index_q, 0)
         k4i     = self.quadrotor_dyn(self.xi + self.dt*k3i, self.ui, self.xl, self.ti, self.index_q, 0)
         self.model_i = (k1i + 2*k2i + 2*k3i + k4i)/6
+        self.dyni      = k1i # i-th quadrotor dynamics model used in Acados
         # Quadrotor: dynamic model used in the step function (the time-step in simulation may be different from that used in MPC)
         self.dyn_i_fn = Function('k1i',[self.xi, self.ui, self.xl, self.ti, self.index_q], [k1i_normal], ['xi0', 'ui0', 'xl0', 'ti0', 'index0'], ['k1if'])
 
@@ -498,6 +503,65 @@ class multilifting:
         return ref_pi, ref_v, ref_a
     
 
+    def minisnap_load_fig8(self,Coeffx,Coeffy,Coeffz,time):
+        t_switch = 0
+        t1,t2,t3,t4,t5,t6,t7 = 4,2,2,2,2,2,2
+        if time<t1:
+            ref_px, ref_vx, ref_ax, ref_jx, ref_sx = self.polytraj(Coeffx[0,:],time,t_switch)
+            ref_py, ref_vy, ref_ay, ref_jy, ref_sy = self.polytraj(Coeffy[0,:],time,t_switch)
+            ref_pz, ref_vz, ref_az, ref_jz, ref_sz = self.polytraj(Coeffz[0,:],time,t_switch)
+        elif time>=t1 and time<(t1+t2):
+            ref_px, ref_vx, ref_ax, ref_jx, ref_sx = self.polytraj(Coeffx[1,:],time,t1+t_switch)
+            ref_py, ref_vy, ref_ay, ref_jy, ref_sy = self.polytraj(Coeffy[1,:],time,t1+t_switch)
+            ref_pz, ref_vz, ref_az, ref_jz, ref_sz = self.polytraj(Coeffz[1,:],time,t1+t_switch)
+        elif time>=(t1+t2) and time<(t1+t2+t3):
+            ref_px, ref_vx, ref_ax, ref_jx, ref_sx = self.polytraj(Coeffx[2,:],time,t1+t2+t_switch)
+            ref_py, ref_vy, ref_ay, ref_jy, ref_sy = self.polytraj(Coeffy[2,:],time,t1+t2+t_switch)
+            ref_pz, ref_vz, ref_az, ref_jz, ref_sz = self.polytraj(Coeffz[2,:],time,t1+t2+t_switch)
+        elif time>=(t1+t2+t3) and time<(t1+t2+t3+t4):
+            ref_px, ref_vx, ref_ax, ref_jx, ref_sx = self.polytraj(Coeffx[3,:],time,t1+t2+t3+t_switch)
+            ref_py, ref_vy, ref_ay, ref_jy, ref_sy = self.polytraj(Coeffy[3,:],time,t1+t2+t3+t_switch)
+            ref_pz, ref_vz, ref_az, ref_jz, ref_sz = self.polytraj(Coeffz[3,:],time,t1+t2+t3+t_switch)
+        elif time>=(t1+t2+t3+t4) and time<(t1+t2+t3+t4+t5):
+            ref_px, ref_vx, ref_ax, ref_jx, ref_sx = self.polytraj(Coeffx[4,:],time,t1+t2+t3+t4+t_switch)
+            ref_py, ref_vy, ref_ay, ref_jy, ref_sy = self.polytraj(Coeffy[4,:],time,t1+t2+t3+t4+t_switch)
+            ref_pz, ref_vz, ref_az, ref_jz, ref_sz = self.polytraj(Coeffz[4,:],time,t1+t2+t3+t4+t_switch)
+        elif time>=(t1+t2+t3+t4+t5) and time<(t1+t2+t3+t4+t5+t6):
+            ref_px, ref_vx, ref_ax, ref_jx, ref_sx = self.polytraj(Coeffx[5,:],time,t1+t2+t3+t4+t5+t_switch)
+            ref_py, ref_vy, ref_ay, ref_jy, ref_sy = self.polytraj(Coeffy[5,:],time,t1+t2+t3+t4+t5+t_switch)
+            ref_pz, ref_vz, ref_az, ref_jz, ref_sz = self.polytraj(Coeffz[5,:],time,t1+t2+t3+t4+t5+t_switch)
+        elif time>=(t1+t2+t3+t4+t5+t6) and time<(t1+t2+t3+t4+t5+t6+t7):
+            ref_px, ref_vx, ref_ax, ref_jx, ref_sx = self.polytraj(Coeffx[6,:],time,t1+t2+t3+t4+t5+t6+t_switch)
+            ref_py, ref_vy, ref_ay, ref_jy, ref_sy = self.polytraj(Coeffy[6,:],time,t1+t2+t3+t4+t5+t6+t_switch)
+            ref_pz, ref_vz, ref_az, ref_jz, ref_sz = self.polytraj(Coeffz[6,:],time,t1+t2+t3+t4+t5+t6+t_switch)
+        else:
+            ref_px, ref_vx, ref_ax, ref_jx, ref_sx = self.polytraj(Coeffx[7,:],time,t1+t2+t3+t4+t5+t6+t7+t_switch)
+            ref_py, ref_vy, ref_ay, ref_jy, ref_sy = self.polytraj(Coeffy[7,:],time,t1+t2+t3+t4+t5+t6+t7+t_switch)
+            ref_pz, ref_vz, ref_az, ref_jz, ref_sz = self.polytraj(Coeffz[7,:],time,t1+t2+t3+t4+t5+t6+t7+t_switch)
+        ref_p = np.reshape(np.vstack((ref_px, ref_py, ref_pz)), (3,1))
+        ref_v = np.reshape(np.vstack((ref_vx, ref_vy, ref_vz)), (3,1))
+        ref_a = np.reshape(np.vstack((ref_ax, ref_ay, ref_az)), (3,1))
+        return ref_p, ref_v, ref_a
+    
+    def minisnap_quadrotor_fig8(self,Coeffx,Coeffy,Coeffz,time,angle_t,index):
+        pil   = np.array([[(self.rl+self.cl0*math.sin(angle_t))*math.cos(index*self.alpha),(self.rl+self.cl0*math.sin(angle_t))*math.sin(index*self.alpha),self.cl0*math.cos(angle_t)]]).T # relative position of the i-th quadrotor in the desired {Bl_d} which is parallel to {I}
+        ref_p, ref_v, ref_a = self.minisnap_load_fig8(Coeffx,Coeffy,Coeffz,time)
+        ref_pi = ref_p + pil
+        return ref_pi, ref_v, ref_a
+    
+    def hovering_load(self,h):
+        ref_p = np.array([[0,0,h]]).T
+        ref_v = np.zeros((3,1))
+        ref_a = np.zeros((3,1))
+        return ref_p, ref_v, ref_a
+    
+    def hovering_quadrotor(self,h,angle_t,index):
+        pil   = np.array([[(self.rl+self.cl0*math.sin(angle_t))*math.cos(index*self.alpha),(self.rl+self.cl0*math.sin(angle_t))*math.sin(index*self.alpha),self.cl0*math.cos(angle_t)]]).T # relative position of the i-th quadrotor in the desired {Bl_d} which is parallel to {I}
+        ref_p, ref_v, ref_a = self.hovering_load(h)
+        ref_pi = ref_p + pil
+        return ref_pi, ref_v, ref_a
+    
+
     # below functions are for demo
     # get the position of the center and the four vertexes of the robot within a trajectory
     def get_quadrotor_position(self, wing_len, state_traj):
@@ -533,24 +597,17 @@ class multilifting:
 
         return position
     
-    def get_payload_position3(self, load_len, state_traj):
+    def get_payload_position(self, load_len, state_traj):
 
         # thrust_position in body frame
-        # r1 = vertcat(load_len*0.5 , 0, 0)
-        # r2 = vertcat(0, -load_len*0.5 , 0)
-        # r3 = vertcat(-load_len*0.5 , 0, 0)
-        # r4 = vertcat(0, load_len*0.5, 0)
-
-        r1 = vertcat(load_len*math.cos(0*self.alpha),load_len*math.sin(0*self.alpha),0)
-        r2 = vertcat(load_len*math.cos(1*self.alpha),load_len*math.sin(1*self.alpha),0)
-        r3 = vertcat(load_len*math.cos(2*self.alpha),load_len*math.sin(2*self.alpha),0)
-        r4 = vertcat(load_len*math.cos(3*self.alpha),load_len*math.sin(3*self.alpha),0)
-        r5 = vertcat(load_len*math.cos(4*self.alpha),load_len*math.sin(4*self.alpha),0)
-        r6 = vertcat(load_len*math.cos(5*self.alpha),load_len*math.sin(5*self.alpha),0)
+        r1 = vertcat(load_len*0.5 , 0, 0)
+        r2 = vertcat(0, -load_len*0.5 , 0)
+        r3 = vertcat(-load_len*0.5 , 0, 0)
+        r4 = vertcat(0, load_len*0.5, 0)
 
         # horizon
         horizon = np.size(state_traj, 1)
-        position = np.zeros((3*7,horizon))
+        position = np.zeros((15,horizon))
         for t in range(horizon):
             # position of COM
             rc = state_traj[0:3, t]
@@ -563,60 +620,13 @@ class multilifting:
             r2_pos = rc + mtimes(CIB, r2).full().flatten()
             r3_pos = rc + mtimes(CIB, r3).full().flatten()
             r4_pos = rc + mtimes(CIB, r4).full().flatten()
-            r5_pos = rc + mtimes(CIB, r5).full().flatten()
-            r6_pos = rc + mtimes(CIB, r6).full().flatten()
-            # store
-            position[0:3,t] = rc
-            position[3:6,t] = r1_pos
-            position[6:9,t] = r2_pos
-            position[9:12,t] = r3_pos
-            # position[12:15,t] = r4_pos
-            # position[15:18,t] = r5_pos
-            # position[18:21,t] = r6_pos
 
-        return position
-    
-    
-    def get_payload_position6(self, load_len, state_traj):
-
-        # thrust_position in body frame
-        # r1 = vertcat(load_len*0.5 , 0, 0)
-        # r2 = vertcat(0, -load_len*0.5 , 0)
-        # r3 = vertcat(-load_len*0.5 , 0, 0)
-        # r4 = vertcat(0, load_len*0.5, 0)
-
-        r1 = vertcat(load_len*math.cos(0*self.alpha),load_len*math.sin(0*self.alpha),0)
-        r2 = vertcat(load_len*math.cos(1*self.alpha),load_len*math.sin(1*self.alpha),0)
-        r3 = vertcat(load_len*math.cos(2*self.alpha),load_len*math.sin(2*self.alpha),0)
-        r4 = vertcat(load_len*math.cos(3*self.alpha),load_len*math.sin(3*self.alpha),0)
-        r5 = vertcat(load_len*math.cos(4*self.alpha),load_len*math.sin(4*self.alpha),0)
-        r6 = vertcat(load_len*math.cos(5*self.alpha),load_len*math.sin(5*self.alpha),0)
-
-        # horizon
-        horizon = np.size(state_traj, 1)
-        position = np.zeros((3*7,horizon))
-        for t in range(horizon):
-            # position of COM
-            rc = state_traj[0:3, t]
-            # rotation matrix
-            q = state_traj[6:10, t]
-            CIB = self.q_2_rotation(q,1)
-           
-            # position of each rotor in inertial frame
-            r1_pos = rc + mtimes(CIB, r1).full().flatten()
-            r2_pos = rc + mtimes(CIB, r2).full().flatten()
-            r3_pos = rc + mtimes(CIB, r3).full().flatten()
-            r4_pos = rc + mtimes(CIB, r4).full().flatten()
-            r5_pos = rc + mtimes(CIB, r5).full().flatten()
-            r6_pos = rc + mtimes(CIB, r6).full().flatten()
             # store
             position[0:3,t] = rc
             position[3:6,t] = r1_pos
             position[6:9,t] = r2_pos
             position[9:12,t] = r3_pos
             position[12:15,t] = r4_pos
-            position[15:18,t] = r5_pos
-            position[18:21,t] = r6_pos
 
         return position
 
