@@ -29,6 +29,7 @@ print("========================================")
 print("Main code for training or evaluating Distributed Autotuning Multilifting Controller")
 print("PLease choose ctrlmode")
 ctrlmode = input("enter 's' or 'p' without the quotation mark:") # s: sequential, p: parallel
+# parallel mode is not recommended as it will be very slow using 'multiprocessing'. In the future, it is of high interest to explore GPU parallel computing
 print("========================================")
 
 
@@ -249,7 +250,7 @@ def QuadrotorMPC(xi_fb, xq_traj, uq_traj, xl_traj, ul_traj, Ref_xi, Ref_ui, Para
     viol_cxi = np.reshape(sum_viol_cxi/len(cox_opt_i),(1,1))
     xi_temp[:]  = np.reshape(xi_opt,(horizon+1)*nxi)
     ui_temp[:]  = np.reshape(ui_opt,horizon*nui)
-    ci_quad[:]  = np.reshape(cox_ipopt_i,horizon*nxi)
+    # ci_quad[:]  = np.reshape(cox_ipopt_i,horizon*nxi)
     viol_xtemp[:]  = np.reshape(viol_xi,1)
     viol_utemp[:]  = np.reshape(viol_ui,1)
     viol_ctemp[:]  = np.reshape(viol_cxi,1)
