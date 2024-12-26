@@ -10,7 +10,7 @@ Wang, Bingheng at Control and Simulation Lab, ECE Dept. NUS, Singapore
     "DiffTune-MPC: Closed-loop Learning for Model Predictive Control"
     arXiv preprint arXiv:2312.11384 (2023).
 """
-import Dynamics
+import Dynamics_backup
 import Robust_Flight_MPC
 from casadi import *
 import numpy as np
@@ -38,15 +38,15 @@ print("========================================")
 
 
 """--------------------------------------Load environment---------------------------------------"""
-uav_para     = np.array([1, 0.02, 0.02, 0.04, 3, 0.2]) # L quadrotors
-load_para    = np.array([2.5, 1]) # 2.5 kg for 3 quadrotors, 5 kg for 6 quadrotors
+uav_para     = np.array([1, 0.02, 0.02, 0.04, 6, 0.2]) # L quadrotors
+load_para    = np.array([5, 1]) # 2.5 kg for 3 quadrotors, 5 kg for 6 quadrotors
 cable_para   = np.array([5e3, 1e-2, 1.5])
 Jl           = 0.5*np.array([[1, 1, 1.25]]).T # payload's moment of inertia, 0.5*Jl for 3 quadrotors, Jl for 6 quadrotors
 rg           = np.array([[0.1, 0.1, -0.1]]).T # coordinate of the payload's CoM in {Bl}
 dt_sample    = 1e-2 # used in the 'step' function for simulating the environment
 dt_ctrl      = 2e-2 # for control, 50Hz
 ratio        = int(dt_ctrl/dt_sample)
-stm          = Dynamics.multilifting(uav_para, load_para, cable_para, dt_ctrl)
+stm          = Dynamics_backup.multilifting(uav_para, load_para, cable_para, dt_ctrl)
 stm.model()
 horizon      = 10 # MPC's horizon
 horizon_loss = 20 # horizon of the high-level loss for training, which can be longer than the MPC's horizon
