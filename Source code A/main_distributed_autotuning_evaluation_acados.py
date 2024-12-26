@@ -34,7 +34,7 @@ mode = 'ol'
 """--------------------------------------Load environment---------------------------------------"""
 uav_para     = np.array([1, 0.02, 0.02, 0.04, 6, 0.2]) # L quadrotors
 load_para    = np.array([7, 1]) # 2.5 kg for 3 quadrotors, 7.5 kg for 6 quadrotors
-cable_para   = np.array([1e9,8e-6,1e-2,2]) # E=1 Gpa, A=7mm^2 (pi*1.5^2), c=10, L0=2, Nylon-HD, [5], np.array([5e3, 1e-2, 2])
+cable_para   = np.array([1e9,8e-6,1e-2,2]) # E=1 Gpa, A=7mm^2 (pi*1.5^2), c=10, L0=2, Nylon-HD, [5], np.array([4e3, 1e-2, 2])
 Jl           = 0.7*np.array([[2, 2, 2.5]]).T # payload's moment of inertia, 0.5*Jl for 3 quadrotors, Jl for 6 quadrotors
 rg           = np.array([[0.1, 0.1, -0.1]]).T # coordinate of the payload's CoM in {Bl}
 dt_sample    = 5e-3 # used in the 'step' function for simulating the environment
