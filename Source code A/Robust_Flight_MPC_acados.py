@@ -1196,7 +1196,7 @@ class MPC:
             uq_traj  = uq_temp
 
             #----------The above code will be in parallel, followed by the following code for computing the payload's trajectory--------#
-            #----------In other words, the computations of the quadrotors' MPC and the payload's MPC is sequential----------#
+            #----------In other words, the computations of the quadrotors' MPC and the payload's MPC are sequential----------#
             #----------The reason is that the payload does not have the compuation capability and its MPC is solved by the leader agent--------#
             
             # solve the MPC of the payload using the updated quadrotor trajectories xq_traj
