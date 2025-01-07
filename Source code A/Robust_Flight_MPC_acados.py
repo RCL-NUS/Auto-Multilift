@@ -315,7 +315,7 @@ class MPC:
         for j in range(self.nq-1):
             xj      = self.x_qi[:,j]
             dis_ij  = pik_xy - xj
-            gp_ijk  = -self.bp2 * log(norm_2(dis_ij) - 2*self.rq) 
+            gp_ijk  = -self.bp2 * log(norm_2(dis_ij) - 2*self.rq) # g^i = 2*self.rq - norm_2(dis_ij) as defined in the paper, so here is log(-g^i)
             self.gq_k += gp_ijk
         self.gq_kfn = Function('gq_k',[self.xi, self.x_qi],[self.gq_k],['xi0', 'xqi0'],['gq_kf'])
         
