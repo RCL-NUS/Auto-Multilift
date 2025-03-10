@@ -48,14 +48,14 @@ First and foremost, the implementation for Auto-Multilift is straightforward to 
 ![cl](https://github.com/user-attachments/assets/008e356f-c9e6-475e-8230-2686ab05b600) | ![ol](https://github.com/user-attachments/assets/f3ff696e-0614-469d-8195-515795b77962)
 
 
-
-
 1. Open the Python file '**main_distributed_autotuning_acados.py**' in the folder '**Source code A**'
 2. Before running, please do the following settings:
    * Set the number of quadrotors on line 42 (i.e., the fifth number in the 'uav_para' array).
    * Set the load mass value on line 43 (i.e., the first number in the 'load_para' array).
    * Set the MPC horizon on line 52 (the default value is 10).
    * Set the higher-level loss horizon on line 53 (the default value is 20).
+   * Kindly ensure that the correct load reference (Line 143 in the file '**Reftraj.py**' meanwhile commenting Line 145 in the same file).
+   * Kindly ensure that the correct time duration, 15s, is used in the file '**Dynamics.py**' (Line 83).
 4. After completing the above settings, run the file '**main_distributed_autotuning_acados.py**'. In the prompted terminal interface, you will be asked to select the control and sensitivity propagation modes.
    * In our settings, 's' and 'p' denote 'sequential' and 'parallel' computing, respectively.
    * 'c' and 'o' represent 'closed-loop' (our method) and 'open-loop' (the Safe-PDP method [[1]](#1)) training modes.
