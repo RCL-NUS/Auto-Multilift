@@ -50,10 +50,10 @@ First and foremost, the implementation for Auto-Multilift is straightforward to 
 
 1. Open the Python file '**main_distributed_autotuning_acados.py**' in the folder '**Source code A**'
 2. Before running, please do the following settings:
-   * Set the number of quadrotors on line 42 (i.e., the fifth number in the 'uav_para' array).
-   * Set the load mass value on line 43 (i.e., the first number in the 'load_para' array).
-   * Set the MPC horizon on line 52 (the default value is 10).
-   * Set the higher-level loss horizon on line 53 (the default value is 20).
+   * Set the number of quadrotors on line 38 (i.e., the fifth number in the 'uav_para' array).
+   * Set the load mass value on line 39 (i.e., the first number in the 'load_para' array).
+   * Set the MPC horizon on line 48 (the default value is 10).
+   * Set the higher-level loss horizon on line 49 (the default value is 20).
    * Kindly ensure that the correct load reference (Line 143 in the file '**Reftraj.py**'), while commenting out Line 145 in the same file.
    * Kindly ensure that the correct time duration, 15s, is used in the file '**Dynamics.py**' at Line 83.
 4. After completing the above settings, run the file '**main_distributed_autotuning_acados.py**'. In the prompted terminal interface, you will be asked to select the control and sensitivity propagation modes.
@@ -71,10 +71,10 @@ First and foremost, the implementation for Auto-Multilift is straightforward to 
 
 1. Open the Python file '**main_distributed_autotuning_acados_tensionref.py**' in the folder '**Source code B**'
 2. Before running, please do the following settings:
-   * Set the number of quadrotors on line 40 to the same as that used in Section A (i.e., learning of adaptive weightings). 
-   * Set the load mass value on line 43 (i.e., the first number in the 'load_para' array).
-   * Set the MPC horizon on line 52 (the default value is 10).
-   * Set the higher-level loss horizon on line 53 (the default value is 20).
+   * Set the number of quadrotors on line 34 to the same as that used in Section A (i.e., learning of adaptive weightings). 
+   * Set the load mass value on line 35 (i.e., the first number in the 'load_para' array).
+   * Set the MPC horizon on line 44 (the default value is 10).
+   * Set the higher-level loss horizon on line 45 (the default value is 20).
    * Kindly ensure that the correct load reference is used (Line 145 in the file '**Reftraj.py**'), while commenting out Line 143 in the same file.
    * Kindly ensure that the correct time duration, 20s, is used in the file '**Dynamics.py**' at Line 83. 
 4. After completing the above settings, run the file '**main_distributed_autotuning_acados_tensionref.py**'. In the prompted terminal interface, you will be asked to select the control and sensitivity propagation modes.
