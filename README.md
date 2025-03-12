@@ -60,7 +60,7 @@ First and foremost, the implementation for Auto-Multilift is straightforward to 
    * In our settings, 's' and 'p' denote 'sequential' and 'parallel' computing, respectively.
    * 'c' and 'o' represent 'closed-loop' (our method) and 'open-loop' (the Safe-PDP method [[1]](#1)) training modes.
 4. To evaluate the trained model, run the Python file '**main_distributed_autotuning_evaluation_acados.py**'
-   * You can skip Step 3 and evaluate the saved models that were previously trained and employed in the paper. To do so, copy the files that end with '.pt' from the folder '**Previously trained models**' (within the folder '**Source code A**') to the folder '**trained data**' (where the retained models via Step 3 will be saved).
+   * You can skip Step 3 and evaluate the saved models that were previously trained and employed in the paper. To do so, copy the files that end with '.pt' from the folder '**Previously trained models**' (within the folder '**Source code A**') to the folder '**trained data**' (where the retained models via Step 3 will be saved).  Kindly ensure that the correct time duration, 20s, is used in the file '**Dynamics.py**' at Line 83.
 
 
 ### B: Distributed Learning of Adaptive References
