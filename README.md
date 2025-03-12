@@ -60,7 +60,7 @@ First and foremost, the implementation for Auto-Multilift is straightforward to 
    * In our settings, 's' and 'p' denote 'sequential' and 'parallel' computing, respectively.
    * 'c' and 'o' represent 'closed-loop' (our method) and 'open-loop' (the Safe-PDP method [[1]](#1)) training modes.
 4. To evaluate the trained model, run the Python file '**main_distributed_autotuning_evaluation_acados.py**'
-   * You can skip Step 3 and evaluate the saved models that were previously trained and employed in the paper. To do so, copy the files that end with '.pt' from the folder '**Previously trained models**' (within the folder '**Source code A**') to the folder '**trained data**' (where the retained models via Step 4 will be saved).
+   * You can skip Step 3 and evaluate the saved models that were previously trained and employed in the paper. To do so, copy the files that end with '.pt' from the folder '**Previously trained models**' (within the folder '**Source code A**') to the folder '**trained data**' (where the retained models via Step 3 will be saved).
 
 
 ### B: Distributed Learning of Adaptive References
@@ -77,10 +77,10 @@ First and foremost, the implementation for Auto-Multilift is straightforward to 
    * Set the higher-level loss horizon on line 45 (the default value is 20).
    * Kindly ensure that the correct load reference is used (Line 145 in the file '**Reftraj.py**'), while commenting out Line 143 in the same file.
    * Kindly ensure that the correct time duration, 20s, is used in the file '**Dynamics.py**' at Line 83. 
-4. After completing the above settings, run the file '**main_distributed_autotuning_acados_tensionref.py**'. In the prompted terminal interface, you will be asked to select the control and sensitivity propagation modes.
+3. After completing the above settings, run the file '**main_distributed_autotuning_acados_tensionref.py**'. In the prompted terminal interface, you will be asked to select the control and sensitivity propagation modes.
    * In our settings, 's' and 'p' denote 'sequential' and 'parallel' computing, respectively.
-5. To evaluate the trained model, run the Python file '**main_distributed_acados_tensionref_evaluation.py**'
-   * You can skip Step 4 and evaluate the saved models that were previously trained and employed in the paper. To do so, copy the files that end with '.pt' from the folder '**Previously trained models**' (within the folder '**Source code B**') to the folder '**trained data**' (where the retained models via Step 4 will be saved).
+4. To evaluate the trained model, run the Python file '**main_distributed_acados_tensionref_evaluation.py**'
+   * You can skip Step 3 and evaluate the saved models that were previously trained and employed in the paper. To do so, copy the files that end with '.pt' from the folder '**Previously trained models**' (within the folder '**Source code B**') to the folder '**trained data**' (where the retained models via Step 3 will be saved).
 
 ## 4. Contact Us
 If you encounter a bug in your implementation of the code, please do not hesitate to inform me.
