@@ -50,8 +50,8 @@ def dir_cosine(Euler):
     return R_bw
 
 """--------------------------------------Load Environment---------------------------------------"""
-sysm_para = np.array([3, 0.25, 0.25,0.25,0.25, 0.025,0.02,0, 6, 1.25, 0.125, 0.3])
-dt        = 0.1 # step size 0.1s
+sysm_para = np.array([3, 0.25, 0.25,0.25,0.25, 0.02,0.02,0, 6, 1.25, 0.125, 0.2])
+dt        = 0.05 # step size 0.1s
 rl        = sysm_para[1]
 rq        = sysm_para[10]
 ro        = sysm_para[11]
@@ -65,7 +65,7 @@ nWl       = sysm.nWl
 
 max_line_search_steps = 3
 """--------------------------------------Define Planner---------------------------------------"""
-horizon   = 50
+horizon   = 100
 e_abs, e_rel = 1e-4, 1e-3
 MPC_load  = Optimal_Allocation_DDP_Euler_autotuning_ADMM.MPC_Planner(sysm_para,dt,horizon,e_abs,e_rel)
 MPC_load.SetStateVariable(sysm.xl)
@@ -90,7 +90,7 @@ v0        = np.zeros(MPC_load.n_Pauto)
 # parameters of ADAM
 m0        = np.zeros(MPC_load.n_Pauto)
 beta1     = 0.95 # 0.8 for better ADMM initialization
-beta2     = 0.5 # 0.5 for better ADMM initialization
+beta2     = 0.6 # 0.5 for better ADMM initialization
 """--------------------------------------Define Gradient Solver---------------------------------------"""
 Grad_Solver = Optimal_Allocation_DDP_Euler_autotuning_ADMM.Gradient_Solver(sysm_para, horizon,sysm.xl,sysm.Wl,MPC_load.sc_xl,MPC_load.sc_Wl,MPC_load.nv,MPC_load.P_auto,
                                                                        MPC_load.P_pinv,MPC_load.P_ns,e_abs,e_rel)
@@ -133,7 +133,7 @@ angel_max  = 10
 roll       = np.clip(np.random.normal(0,0.2,1),-angel_max/57.3,angel_max/57.3)
 pitch      = np.clip(np.random.normal(0,0.2,1),-angel_max/57.3,angel_max/57.3)
 yaw        = np.clip(np.random.normal(0,0.2,1),-angel_max/57.3,angel_max/57.3)
-while (abs(roll*57.3)>9 and abs(pitch*57.3)>9 and abs(yaw*57.3)>9) or (abs(roll*57.3)>9 and abs(pitch*57.3)>9) or (abs(pitch*57.3)>9 and abs(yaw*57.3)>9) or (abs(roll*57.3)>9 and abs(yaw*57.3)>9) or abs(roll*57.3)>9 or abs(pitch*57.3)>9:
+while (abs(roll*57.3)>5 and abs(pitch*57.3)>5 and abs(yaw*57.3)>5) or (abs(roll*57.3)>5 and abs(pitch*57.3)>5) or (abs(pitch*57.3)>5 and abs(yaw*57.3)>5) or (abs(roll*57.3)>5 and abs(yaw*57.3)>5) or abs(roll*57.3)>5 or abs(pitch*57.3)>5:
     roll       = np.clip(np.random.normal(0,0.2,1),-angel_max/57.3,angel_max/57.3)
     pitch      = np.clip(np.random.normal(0,0.2,1),-angel_max/57.3,angel_max/57.3)
     yaw        = np.clip(np.random.normal(0,0.2,1),-angel_max/57.3,angel_max/57.3)
@@ -151,7 +151,7 @@ def train(m0,v0,lr0,xl_init,Ref_xl,Ref_Wl,tunable_para0):
         os.makedirs("trained_data")
     tunable_para = tunable_para0
     i = 1
-    i_max      = 50
+    i_max      = 10
     delta_loss = 1e2
     loss0      = 1e2
     epi        = 1e-1
@@ -165,6 +165,10 @@ def train(m0,v0,lr0,xl_init,Ref_xl,Ref_Wl,tunable_para0):
     gradtimeRe2 = []
     gradtimeNO1 = []
     gradtimeNO2 = []
+    gradtimeCao1 = []
+    gradtimeCao2 = []
+    gradtimeCao1_s = []
+    gradtimeCao2_s = []
     meanerror1  = []
     meanerror2  = []
     Auxtime1_1  = []
@@ -186,19 +190,23 @@ def train(m0,v0,lr0,xl_init,Ref_xl,Ref_Wl,tunable_para0):
         mpctime    = (TM.time() - start_time)*1000
         print("a:--- %s ms ---" % format(mpctime,'.2f'))
         # start_time = TM.time()
-        Grad_Out1, Grad_Out2, Grad_Out3, GradTime, GradTimeNO, Meanerror, AuxTime1, AuxTime2NO = MPC_load.ADMM_Gradient_Solver(Opt_Sol1,Opt_Sol2,Opt_Y,Opt_Eta,Ref_xl,Ref_Wl,p_weight1,p_weight2,p1)
+        Grad_Out1, Grad_Out2, Grad_Out3, GradTime, GradTimeNO, GradTimeCao, GradTimeCao_s, Meanerror, AuxTime1, AuxTime2NO = MPC_load.ADMM_Gradient_Solver(Opt_Sol1,Opt_Sol2,Opt_Y,Opt_Eta,Ref_xl,Ref_Wl,p_weight1,p_weight2,p1)
         # gradtime    = (TM.time() - start_time)*1000
         # print("g:--- %s ms ---" % format(gradtime,'.2f'))
         gradtimeRe1 += [GradTime[0]]
         gradtimeRe2 += [GradTime[1]]
-        gradtimeNO1 += [GradTimeNO[0]]
-        gradtimeNO2 += [GradTimeNO[1]]
+        # gradtimeNO1 += [GradTimeNO[0]]
+        # gradtimeNO2 += [GradTimeNO[1]]
+        gradtimeCao1 += [GradTimeCao[0]]
+        gradtimeCao2 += [GradTimeCao[1]]
+        gradtimeCao1_s += [GradTimeCao_s[0]]
+        gradtimeCao2_s += [GradTimeCao_s[1]]
         meanerror1  += [Meanerror[0]]
         meanerror2  += [Meanerror[1]]
-        Auxtime1_1  += [AuxTime1[0]]
-        Auxtime1_2  += [AuxTime1[1]]
-        Auxtime2NO_1+= [AuxTime2NO[0]]
-        Auxtime2NO_2+= [AuxTime2NO[1]]
+        # Auxtime1_1  += [AuxTime1[0]]
+        # Auxtime1_2  += [AuxTime1[1]]
+        # Auxtime2NO_1+= [AuxTime2NO[0]]
+        # Auxtime2NO_2+= [AuxTime2NO[1]]
         dldw, loss  = Grad_Solver.ChainRule(Opt_Sol1,Opt_Sol2,Ref_xl,Grad_Out1,Grad_Out2,p1)
         dwdp        = Grad_Solver.ChainRule_Gradient(tunable_para)
         dldp        = np.reshape(dldw@dwdp,MPC_load.n_Pauto)
@@ -223,7 +231,7 @@ def train(m0,v0,lr0,xl_init,Ref_xl,Ref_Wl,tunable_para0):
         Tl_train  += [Opt_Sol2[1]['Tl_opt']]
         iter_train += [i]
         if i==1:
-            epi = 1e-3*loss
+            epi = 2e-3*loss
         if i>2:
             delta_loss = abs(loss-loss0)
         loss0      = loss
@@ -242,6 +250,10 @@ def train(m0,v0,lr0,xl_init,Ref_xl,Ref_Wl,tunable_para0):
     np.save('trained_data/gradtimeRe2',gradtimeRe2)
     np.save('trained_data/gradtimeNO1',gradtimeNO1)
     np.save('trained_data/gradtimeNO2',gradtimeNO2)
+    np.save('trained_data/gradtimeCao1',gradtimeCao1)
+    np.save('trained_data/gradtimeCao2',gradtimeCao2)
+    np.save('trained_data/gradtimeCao1_s',gradtimeCao1_s)
+    np.save('trained_data/gradtimeCao2_s',gradtimeCao2_s)
     np.save('trained_data/meanerror1',meanerror1)
     np.save('trained_data/meanerror2',meanerror2)
     np.save('trained_data/Auxtime1_1',Auxtime1_1)

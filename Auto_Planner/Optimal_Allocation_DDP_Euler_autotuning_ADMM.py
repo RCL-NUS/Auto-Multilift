@@ -135,17 +135,6 @@ class MPC_Planner:
     def SetCostDyn_ADMM(self):
         self.ref_xl   = SX.sym('ref_xl',self.n_xl,1)
         self.ref_Wl   = SX.sym('ref_Wl',self.n_Wl,1)
-        
-        # p_error_l     = self.xl[0:3,0] - self.ref_xl[0:3,0]
-        # v_error_l     = self.xl[3:6,0] - self.ref_xl[3:6,0]
-        # ql            = self.xl[6:10,0]
-        # ref_ql        = self.ref_xl[6:10,0]
-        # Rl            = self.q_2_rotation(ql)
-        # Rdl           = self.q_2_rotation(ref_ql)
-        # error_Rl      = Rdl.T@Rl - Rl.T@Rdl
-        # att_error_l   = 1/2*self.vee_map(error_Rl) # attitude error in Lie group
-        # w_error_l     = self.xl[10:13,0] - self.ref_xl[10:13,0]
-        # track_error_l = vertcat(p_error_l,v_error_l,att_error_l,w_error_l)
         track_error_l = self.xl - self.ref_xl
         ctrl_error_l  = self.Wl - self.ref_Wl
         xl_const_v    = self.xl - self.sc_xl + self.sc_xL/self.p1 # state constraint violation
@@ -321,29 +310,12 @@ class MPC_Planner:
             self.lbg2 += [0.05]
             self.ubg2 += [100] # add an upbound for numerical stability
 
-            # gi1c = self.Gi1c_admm[i](scxl0=Xk,scWl0=Wk,tm0=Tk)['go1c'+str(i)+'f_admm']
-            # g += [gi1c]
-            # self.lbg2 += [0.05]
-            # self.ubg2 += [100] # add an upbound for numerical stability
-            # gi2c = self.Gi2c_admm[i](scxl0=Xk,scWl0=Wk,tm0=Tk)['go2c'+str(i)+'f_admm']
-            # g += [gi2c]
-            # self.lbg2 += [0.05]
-            # self.ubg2 += [100] # add an upbound for numerical stability
-
         # add inequality safe inter-robot constraints
         for i in range(len(self.Gij_admm)):
             gij = self.Gij_admm[i](scxl0=Xk,scWl0=Wk,tm0=Tk)['g'+str(i)+'f_admm']
             g += [gij]
             self.lbg2 += [0.05]
             self.ubg2 += [100] # add an upbound for numerical stability
-            # gijc = self.Gijc_admm[i](scxl0=Xk,scWl0=Wk,tm0=Tk)['gc'+str(i)+'f_admm']
-            # g += [gijc]
-            # self.lbg2 += [0.05]
-            # self.ubg2 += [100] # add an upbound for numerical stability
-            # gijc2 = self.Gijc2_admm[i](scxl0=Xk,scWl0=Wk,tm0=Tk)['gc2'+str(i)+'f_admm']
-            # g += [gijc2]
-            # self.lbg2 += [0.05]
-            # self.ubg2 += [100] # add an upbound for numerical stability
 
         # create an NLP solver and solve it
         opts = {}
@@ -873,6 +845,74 @@ class MPC_Planner:
         
         return grad_out
     
+    def Cao_Kun_Gradient(self,opt_sol,auxSys1, scxl_grad, scxL_grad, scWl_grad, scWL_grad, weight1,p1):
+        # solve the augmented optimal problem using one-step DDP recursion
+        Hxx, Hxu, Huu, F, G = opt_sol['Hxx'], opt_sol['Hxu'], opt_sol['Huu'], opt_sol['Fx'], opt_sol['Fu']
+        HxNp, Hxp, Hup = auxSys1['HxNp'], auxSys1['Hxp'], auxSys1['Hup']
+        Vyy      = (self.N+1)*[np.zeros((self.n_Pauto+self.n_xl,self.n_Pauto+self.n_xl))] # a large matrix
+        Kfb_y    = self.N*[np.zeros((self.n_Wl,self.n_Pauto+self.n_xl))] # augmented feedback gain
+        xl_grad    = (self.N+1)*[np.zeros((self.n_xl,self.n_Pauto))] 
+        Wl_grad    = self.N*[np.zeros((self.n_Wl,self.n_Pauto))]
+        Vyy[self.N] = vertcat(
+                                horzcat(np.zeros((self.n_Pauto,self.n_Pauto)),HxNp.T),
+                                horzcat(HxNp,self.lxxN_fn(P1l0=weight1)['lxxNf'].full())
+                            )
+        for k in reversed(range(self.N)):
+            Hyy_k   = vertcat(
+                horzcat(np.zeros((self.n_Pauto,self.n_Pauto)),(Hxp[k]+ scxL_grad[k] - p1*np.identity(self.n_xl)@scxl_grad[k]).T),
+                horzcat((Hxp[k]+ scxL_grad[k] - p1*np.identity(self.n_xl)@scxl_grad[k]),Hxx[k])
+            )
+            F_bar   = vertcat(
+                horzcat(np.identity(self.n_Pauto),np.zeros((self.n_Pauto,self.n_xl))),
+                horzcat(np.zeros((self.n_Pauto,self.n_xl)).T,F[k])
+            )
+            G_bar   = vertcat(np.zeros((self.n_Pauto,self.n_Wl)),G[k])
+            Huy_k   = horzcat((Hup[k]+ scWL_grad[k] - p1*np.identity(self.n_Wl)@scWl_grad[k]),Hxu[k].T)
+            Qyy_k   = Hyy_k + F_bar.T@Vyy[k+1]@F_bar
+            Quy_k   = Huy_k + G_bar.T@Vyy[k+1]@F_bar
+            Quu_k   = Huu[k] + G_bar.T@Vyy[k+1]@G_bar
+            Kfb_y[k]=-LA.inv(Quu_k)@Quy_k
+            Vyy[k]  = Qyy_k + Quy_k.T@Kfb_y[k]
+        
+        for k in range(self.N):
+            Wl_grad[k] = Kfb_y[k]@vertcat(np.identity(self.n_Pauto),xl_grad[k])
+            xl_grad[k+1] = F[k]@xl_grad[k]+G[k]@Wl_grad[k]
+
+        grad_out_cao ={"xl_grad":xl_grad,
+                   "Wl_grad":Wl_grad
+                }
+        
+        return grad_out_cao
+
+
+    def Cao_Kun_Gradient_Simplifed(self,opt_sol,auxSys1, scxl_grad, scxL_grad, scWl_grad, scWL_grad,p1):
+        Huuinv, Qxu, K_fb, F, G  = opt_sol['H_k_inv'], opt_sol['Qxu'], opt_sol['K_FB'], opt_sol['Fx'], opt_sol['Fu']
+        HxNp, Hxp, Hup = auxSys1['HxNp'], auxSys1['Hxp'], auxSys1['Hup']
+        S          = (self.N+1)*[np.zeros((self.n_xl,self.n_Pauto))]
+        Vpp        = (self.N+1)*[np.zeros((self.n_Pauto,self.n_Pauto))]
+        S[self.N]  = HxNp
+        Vpp[self.N]= np.zeros((self.n_Pauto,self.n_Pauto))
+        v_FF       = self.N*[np.zeros((self.n_Wl,self.n_Pauto))]
+        xl_grad    = (self.N+1)*[np.zeros((self.n_xl,self.n_Pauto))] 
+        Wl_grad    = self.N*[np.zeros((self.n_Wl,self.n_Pauto))]
+        #-------Backward recursion-------#         
+        for k in reversed(range(self.N)): 
+            Hxp_k    = Hxp[k] + scxL_grad[k] - p1*np.identity(self.n_xl)@scxl_grad[k]
+            Hup_k    = Hup[k] + scWL_grad[k] - p1*np.identity(self.n_Wl)@scWl_grad[k]
+            v_FF[k]  = -Huuinv[k]@(Hup_k + G[k].T@S[k+1])
+            Vpp[k]   = np.zeros((self.n_Pauto,self.n_Pauto)) + Vpp[k+1] + (Hup_k + G[k].T@S[k+1]).T@v_FF[k]
+            S[k]     = Hxp_k + F[k].T@S[k+1] + Qxu[k]@v_FF[k] # s[0] not used
+        #-------Foreward recursion-------#
+        for k in range(self.N):
+            Wl_grad[k]  = K_fb[k]@xl_grad[k]+v_FF[k]
+            xl_grad[k+1]= F[k]@xl_grad[k]+G[k]@Wl_grad[k]
+
+        grad_out_cao ={"xl_grad":xl_grad,
+                   "Wl_grad":Wl_grad
+                }
+        
+        return grad_out_cao
+
 
     def PDP_Gradient_NOreuse(self,auxsys_No,auxSys1, scxl_grad, scxL_grad, scWl_grad, scWL_grad, p1):
         Hxx, Hxu, Huu, F, G  = auxsys_No['Hxx'], auxsys_No['Hxu'], auxsys_No['Huu'], auxsys_No['Fx'], auxsys_No['Fu']
@@ -998,6 +1038,8 @@ class MPC_Planner:
         Grad_Out3 = []
         GradTime  = []
         GradTimeNO= []
+        GradTimeCao=[]
+        GradTimeCao_s = []
         Meanerror = []
         AuxTime1  = []
         AuxTime2NO= []
@@ -1012,14 +1054,22 @@ class MPC_Planner:
             grad_out  = self.DDP_Gradient(opt_sol1,auxSys1, scxl_grad, scxL_grad, scWl_grad, scWL_grad, p1)
             gradtimeRe    = (TM.time() - start_time)*1000
             print("g_reuse:--- %s ms ---" % format(gradtimeRe,'.2f'))
+            # start_time = TM.time()
+            # axuSys1No  = self.Get_AuxSys_DDP_NOreuse(opt_sol1,Ref_xl,Ref_Wl,weight1,scxl_opt,scWl_opt,Y,Eta,p1)
+            # auxtime2    = (TM.time() - start_time)*1000
+            # print("auxSys1Notime:--- %s ms ---" % format(auxtime2,'.2f'))
             start_time = TM.time()
-            axuSys1No  = self.Get_AuxSys_DDP_NOreuse(opt_sol1,Ref_xl,Ref_Wl,weight1,scxl_opt,scWl_opt,Y,Eta,p1)
-            auxtime2    = (TM.time() - start_time)*1000
-            print("auxSys1Notime:--- %s ms ---" % format(auxtime2,'.2f'))
-            start_time = TM.time()
-            grad_outNO  = self.PDP_Gradient_NOreuse(axuSys1No,auxSys1, scxl_grad, scxL_grad, scWl_grad, scWL_grad, p1)
+            grad_outNO  = self.PDP_Gradient_NOreuse(opt_sol1 ,auxSys1, scxl_grad, scxL_grad, scWl_grad, scWL_grad, p1)
             gradtimeNO    = (TM.time() - start_time)*1000
             print("g_PDPNoreuse:--- %s ms ---" % format(gradtimeNO,'.2f'))
+            start_time = TM.time()
+            grad_out_cao  = self.Cao_Kun_Gradient(opt_sol1,auxSys1, scxl_grad, scxL_grad, scWl_grad, scWL_grad, weight1,p1)
+            gradtimeCao    = (TM.time() - start_time)*1000
+            print("g_Cao:--- %s ms ---" % format(gradtimeCao,'.2f'))
+            start_time = TM.time()
+            grad_out_cao  = self.Cao_Kun_Gradient_Simplifed(opt_sol1,auxSys1, scxl_grad, scxL_grad, scWl_grad, scWL_grad, p1)
+            gradtimeCao_s    = (TM.time() - start_time)*1000
+            print("g_Cao_simplified:--- %s ms ---" % format(gradtimeCao_s,'.2f'))
             # gradients of Subproblem2
             opt_sol2  = Opt_Sol2[i_admm]
             auxSys2   = self.Get_AuxSys_SubP2(opt_sol1,opt_sol2,Y,Eta,weight2,p1)
@@ -1042,20 +1092,23 @@ class MPC_Planner:
             Grad_Out3 += [grad_out3]
             GradTime  += [gradtimeRe]
             GradTimeNO+= [gradtimeNO]
+            GradTimeCao += [gradtimeCao]
+            GradTimeCao_s += [gradtimeCao_s]
             AuxTime1  += [auxtime1]
-            AuxTime2NO+= [auxtime2]
+            # AuxTime2NO+= [auxtime2]
             # error between two gradient trajectories
             xl_grad = grad_out['xl_grad']
             xl_gradNO = grad_outNO['xl_grad']
+            xl_gradCao = grad_out_cao['xl_grad']
             Error   = 0
             for i in range(self.N):
-                error = xl_grad[i+1] - xl_gradNO[i+1]
+                error = xl_grad[i+1] - xl_gradCao[i+1]
                 Error += LA.norm(error,2)
             meanerror = Error/self.N
             print('meanerror=',meanerror)
             Meanerror += [meanerror]
 
-        return Grad_Out1, Grad_Out2, Grad_Out3, GradTime, GradTimeNO, Meanerror, AuxTime1, AuxTime2NO
+        return Grad_Out1, Grad_Out2, Grad_Out3, GradTime, GradTimeNO, GradTimeCao, GradTimeCao_s, Meanerror, AuxTime1, AuxTime2NO
 
             
 
@@ -1106,7 +1159,7 @@ class Gradient_Solver:
         r_dual_w      = self.scWl - self.scWl_pre
         self.loss_rd  = self.p*(r_dual_x.T@r_dual_x + r_dual_w.T@r_dual_w)
         # penalty of the smoothness of the quadrotors' trajectories
-        self.w_smooth = 1e-3
+        self.w_smooth = 1e-2
         self.loss_smooth_0  = 0 # for k=0
         self.loss_smooth_k  = 0 # for 0<k<N-2
         self.loss_smooth_N2 = 0 # for k=N-2
