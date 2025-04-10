@@ -303,18 +303,18 @@ class MPC_Planner:
         for i in range(int(self.nq)):
             gi1 = self.Gi1_admm[i](scxl0=Xk,scWl0=Wk,tm0=Tk)['go1'+str(i)+'f_admm']
             g += [gi1]
-            self.lbg2 += [0.05]
+            self.lbg2 += [0.1]
             self.ubg2 += [100] # add an upbound for numerical stability
             gi2 = self.Gi2_admm[i](scxl0=Xk,scWl0=Wk,tm0=Tk)['go2'+str(i)+'f_admm']
             g += [gi2]
-            self.lbg2 += [0.05]
+            self.lbg2 += [0.1]
             self.ubg2 += [100] # add an upbound for numerical stability
 
         # add inequality safe inter-robot constraints
         for i in range(len(self.Gij_admm)):
             gij = self.Gij_admm[i](scxl0=Xk,scWl0=Wk,tm0=Tk)['g'+str(i)+'f_admm']
             g += [gij]
-            self.lbg2 += [0.05]
+            self.lbg2 += [0.1]
             self.ubg2 += [100] # add an upbound for numerical stability
 
         # create an NLP solver and solve it
@@ -776,7 +776,7 @@ class MPC_Planner:
             mpctime    = (TM.time() - start_time)*1000
             print("subprblem1:--- %s ms ---" % format(mpctime,'.2f'))
             xl_opt   = opt_sol1['xl_opt']
-            xl_optr  = np.reshape(xl_opt,(self.N+1)*self.n_xl)
+            xl_optr  = np.reshape(xl_opt[0:self.N,:],(self.N)*self.n_xl)
             xl_traj  = xl_optr[0:self.N*self.n_xl]
             Wl_opt   = opt_sol1['Wl_opt']
             Wl_traj  = np.reshape(Wl_opt,self.N*self.n_Wl)
@@ -1159,7 +1159,7 @@ class Gradient_Solver:
         r_dual_w      = self.scWl - self.scWl_pre
         self.loss_rd  = self.p*(r_dual_x.T@r_dual_x + r_dual_w.T@r_dual_w)
         # penalty of the smoothness of the quadrotors' trajectories
-        self.w_smooth = 1e-2
+        self.w_smooth = 1e-3
         self.loss_smooth_0  = 0 # for k=0
         self.loss_smooth_k  = 0 # for 0<k<N-2
         self.loss_smooth_N2 = 0 # for k=N-2

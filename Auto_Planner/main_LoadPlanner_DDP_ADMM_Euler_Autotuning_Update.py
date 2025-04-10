@@ -50,8 +50,8 @@ def dir_cosine(Euler):
     return R_bw
 
 """--------------------------------------Load Environment---------------------------------------"""
-sysm_para = np.array([3, 0.25, 0.25,0.25,0.25, 0.02,0.02,0, 6, 1.25, 0.125, 0.2])
-dt        = 0.05 # step size 0.1s
+sysm_para = np.array([3, 0.25, 0.25,0.25,0.25, 0.02,0.02,0, 6, 1.25, 0.125, 1.1])
+dt        = 0.1 # step size 0.1s
 rl        = sysm_para[1]
 rq        = sysm_para[10]
 ro        = sysm_para[11]
@@ -65,14 +65,14 @@ nWl       = sysm.nWl
 
 max_line_search_steps = 3
 """--------------------------------------Define Planner---------------------------------------"""
-horizon   = 100
+horizon   = 50
 e_abs, e_rel = 1e-4, 1e-3
 MPC_load  = Optimal_Allocation_DDP_Euler_autotuning_ADMM.MPC_Planner(sysm_para,dt,horizon,e_abs,e_rel)
 MPC_load.SetStateVariable(sysm.xl)
 MPC_load.SetCtrlVariable(sysm.Wl)
 MPC_load.SetDyn(sysm.model_l)
 MPC_load.SetLearnablePara()
-pob1, pob2 = np.array([[2,3]]).T, np.array([[1,4]]).T # planar positions of the two obstacle in the world frame
+pob1, pob2 = np.array([[2.62,2.54]]).T, np.array([[0.4,4.4]]).T # planar positions of the two obstacle in the world frame
 print('obstacle_distance=',LA.norm(pob1-pob2))
 MPC_load.SetConstraints_ADMM_Subp2(pob1,pob2)
 MPC_load.SetCostDyn_ADMM()
@@ -90,7 +90,7 @@ v0        = np.zeros(MPC_load.n_Pauto)
 # parameters of ADAM
 m0        = np.zeros(MPC_load.n_Pauto)
 beta1     = 0.95 # 0.8 for better ADMM initialization
-beta2     = 0.6 # 0.5 for better ADMM initialization
+beta2     = 0.45 # 0.5 for better ADMM initialization
 """--------------------------------------Define Gradient Solver---------------------------------------"""
 Grad_Solver = Optimal_Allocation_DDP_Euler_autotuning_ADMM.Gradient_Solver(sysm_para, horizon,sysm.xl,sysm.Wl,MPC_load.sc_xl,MPC_load.sc_Wl,MPC_load.nv,MPC_load.P_auto,
                                                                        MPC_load.P_pinv,MPC_load.P_ns,e_abs,e_rel)
@@ -143,7 +143,7 @@ wl         = np.reshape(np.random.normal(0,0.01,3),(3,1))
 xl_init    = np.reshape(np.vstack((pl,vl,Eulerl,wl)),nxl)
 
 # MPC weights (learnable parameters, now manually tuned)
-tunable_para0 = np.random.normal(0,0.01,MPC_load.n_Pauto) # initialization
+tunable_para0 = np.random.normal(0,0.1,MPC_load.n_Pauto) # initialization
 
 # Solve the load's MPC planner
 def train(m0,v0,lr0,xl_init,Ref_xl,Ref_Wl,tunable_para0):
@@ -231,7 +231,7 @@ def train(m0,v0,lr0,xl_init,Ref_xl,Ref_Wl,tunable_para0):
         Tl_train  += [Opt_Sol2[1]['Tl_opt']]
         iter_train += [i]
         if i==1:
-            epi = 2e-3*loss
+            epi = 1e-3*loss
         if i>2:
             delta_loss = abs(loss-loss0)
         loss0      = loss
@@ -288,11 +288,13 @@ def evaluate(i_train):
         Pl[:,k:k+1] = np.reshape(xl_opt[k,0:3],(3,1))
         scPl[:,k:k+1] = np.reshape(scxl_opt[k,0:3],(3,1))
     Xq         = [] # list that stores all quadrotors' predicted trajectories
+    DI         = [] # list that stores all cables' direction trajectories
     Aq         = [] # list that stores all cable attachments' trajectories in the world frame
     alpha      = 2*np.pi/nq
     Tq         = np.zeros((nq,horizon))
     for i in range(nq):
         Pi     = np.zeros((3,horizon))
+        di     = np.zeros((3,horizon))
         ri     = np.array([[rl*math.cos(i*alpha),rl*math.sin(i*alpha),0]]).T
         ai     = np.zeros((3,horizon))
         for k in range(horizon):
@@ -304,13 +306,19 @@ def evaluate(i_train):
             El_k  = np.reshape(xl_opt[k,6:9],(3,1))
             Rl_k  = dir_cosine(El_k)
             pi_k  = pl_k + Rl_k@(ri + cl0*ti_k/LA.norm(ti_k))
+            di_k  = Rl_k@ti_k/LA.norm(ti_k)
             ai_k  = pl_k + Rl_k@ri
             Pi[:,k:k+1] = pi_k
+            di[:,k:k+1] = di_k
             ai[:,k:k+1] = ai_k
             Tq[i,k] = LA.norm(ti_k)
         Xq += [Pi]
+        DI += [di]
         Aq += [ai]
 
+    # Save data
+    np.save('Planning_plots/tension_magnitude',Tq)
+    np.save('Planning_plots/cable_direction',DI)
     # Plots
 
     fig1, ax1 = plt.subplots(figsize=(5,5),dpi=300)
@@ -425,7 +433,7 @@ def evaluate(i_train):
     ax7.plot(scPl[0,:],scPl[1,:],label='Planned_SubP2',linewidth=1)
     kt = horizon/50
     for k in range(horizon):
-        if k==1*kt or k==20*kt or k==26*kt or k==35*kt or k==49*kt:
+        if k==1*kt or k==20*kt or k==25*kt or k==35*kt or k==49*kt:
             quad1  = Circle((Xq[0][0,k],Xq[0][1,k]),rq,fill=False)
             ax7.add_patch(quad1)
             quad2  = Circle((Xq[1][0,k],Xq[1][1,k]),rq,fill=False)
@@ -490,5 +498,5 @@ if mode =="t":
 else:
     loss_train = np.load('trained_data/loss_train.npy')
     evaluate(len(loss_train)-1)
-    evaluate(0)
-    evaluate(4)
+    # evaluate(0)
+    # evaluate(4)
