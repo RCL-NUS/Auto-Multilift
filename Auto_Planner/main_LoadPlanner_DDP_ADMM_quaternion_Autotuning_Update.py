@@ -89,8 +89,8 @@ v0        = np.zeros(MPC_load.n_Pauto)
 
 # parameters of ADAM
 m0        = np.zeros(MPC_load.n_Pauto)
-beta1     = 0.9 # 0.8 for better ADMM initialization
-beta2     = 0.385 # 0.5 for better ADMM initialization
+beta1     = 0.5 # 0.8 for better ADMM initialization
+beta2     = 0.2 # 0.5 for better ADMM initialization
 """--------------------------------------Define Gradient Solver---------------------------------------"""
 Grad_Solver = Optimal_Allocation_DDP_quaternion_autotuning_ADMM.Gradient_Solver(sysm_para, horizon,sysm.xl,sysm.Wl,MPC_load.sc_xl,MPC_load.sc_Wl,MPC_load.nv,MPC_load.P_auto,
                                                                        MPC_load.P_pinv,MPC_load.P_ns,e_abs,e_rel)
@@ -281,10 +281,12 @@ def evaluate(i_train):
     Pl         = np.zeros((3,horizon))
     scPl       = np.zeros((3,horizon))
     Euler_l    = np.zeros((3,horizon))
+    norm_2_Ql  = np.zeros(horizon)
     for k in range(horizon):
         Pl[:,k:k+1] = np.reshape(xl_opt[k,0:3],(3,1))
         scPl[:,k:k+1] = np.reshape(scxl_opt[k,0:3],(3,1))
         ql_k  = np.reshape(xl_opt[k,6:10],(4,1))
+        norm_2_Ql[k] = LA.norm(ql_k)
         Rl_k  = sysm.q_2_rotation(ql_k)
         rk    = Rot.from_matrix(Rl_k)
         euler_k = np.reshape(rk.as_euler('xyz',degrees=True),(3,1))
@@ -321,6 +323,7 @@ def evaluate(i_train):
     # Save data
     np.save('Planning_plots/tension_magnitude',Tq)
     np.save('Planning_plots/cable_direction',DI)
+    print('norm of quaternion=',norm_2_Ql)
     
     # Plots
 

@@ -971,8 +971,8 @@ class MPC_Planner:
         nv_grad      = self.N*[np.zeros((self.n_nv,self.n_Pauto))]
         for k in range(self.N):
             L_hessian_k = vertcat(
-                            horzcat(Lscxlscxl_l[k] + p1*np.identity(self.n_xl),  LscxlscWl_l[k],Lscxlnv_l[k]),
-                            horzcat(LscxlscWl_l[k].T,LscWlscWl_l[k] + p1*np.identity(self.n_Wl),LscWlnv_l[k]),
+                            horzcat(Lscxlscxl_l[k],  LscxlscWl_l[k],Lscxlnv_l[k]),
+                            horzcat(LscxlscWl_l[k].T,LscWlscWl_l[k],LscWlnv_l[k]),
                             horzcat(Lscxlnv_l[k].T,  LscWlnv_l[k].T,Lnvnv_l[k])
                             )
             L_trajp_k   = vertcat(
@@ -1140,8 +1140,8 @@ class Gradient_Solver:
         self.e_abs  = e_abs
         self.e_rel  = e_rel
         # boundaries of the hyperparameters
-        self.p_min  = 1e-2
-        self.p_max  = 1e2
+        self.p_min  = 1e-3
+        self.p_max  = 1e3
         #------------- loss definition -------------#
         # tracking loss
         self.w_track = 1

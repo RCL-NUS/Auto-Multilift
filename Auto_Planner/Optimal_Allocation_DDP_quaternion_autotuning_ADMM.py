@@ -712,7 +712,7 @@ class MPC_Planner:
         self.LscWlp       = jacobian(self.LscWl,self.P_auto)
         self.LscWlp_fn    = Function('LscWlp',[self.nv, self.xl, self.Wl, self.sc_xl, self.sc_xL, self.sc_Wl, self.sc_WL, self.P2_l, self.p1],[self.LscWlp],['nv0', 'xl0', 'Wl0', 'scxl0', 'scxL0', 'scWl0', 'scWL0', 'P2l0', 'p10'],['LscWlpf'])
         self.Lnvp         = jacobian(self.Lnv,self.P_auto)
-        self.Lnvp_fn     = Function('Lnvp',[self.nv, self.xl, self.Wl, self.sc_xl, self.sc_xL, self.sc_Wl, self.sc_WL, self.P2_l, self.p1],[self.Lnvp],['nv0', 'xl0', 'Wl0', 'scxl0', 'scxL0', 'scWl0', 'scWL0', 'P2l0', 'p10'],['Lnvpf'])
+        self.Lnvp_fn      = Function('Lnvp',[self.nv, self.xl, self.Wl, self.sc_xl, self.sc_xL, self.sc_Wl, self.sc_WL, self.P2_l, self.p1],[self.Lnvp],['nv0', 'xl0', 'Wl0', 'scxl0', 'scxL0', 'scWl0', 'scWL0', 'P2l0', 'p10'],['Lnvpf'])
 
 
     def Get_AuxSys_SubP2(self,opt_sol1,opt_sol2,scxL_opt,scWL_opt,weight2,p1):
@@ -1011,8 +1011,8 @@ class MPC_Planner:
         nv_grad      = self.N*[np.zeros((self.n_nv,self.n_Pauto))]
         for k in range(self.N):
             L_hessian_k = vertcat(
-                            horzcat(Lscxlscxl_l[k] + p1*np.identity(self.n_xl),  LscxlscWl_l[k],Lscxlnv_l[k]),
-                            horzcat(LscxlscWl_l[k].T,LscWlscWl_l[k] + p1*np.identity(self.n_Wl),LscWlnv_l[k]),
+                            horzcat(Lscxlscxl_l[k],  LscxlscWl_l[k],Lscxlnv_l[k]),
+                            horzcat(LscxlscWl_l[k].T,LscWlscWl_l[k],LscWlnv_l[k]),
                             horzcat(Lscxlnv_l[k].T,  LscWlnv_l[k].T,Lnvnv_l[k])
                             )
             L_trajp_k   = vertcat(
@@ -1180,8 +1180,8 @@ class Gradient_Solver:
         self.e_abs  = e_abs
         self.e_rel  = e_rel
         # boundaries of the hyperparameters
-        self.p_min  = 1e-4
-        self.p_max  = 1e4
+        self.p_min  = 1e-3
+        self.p_max  = 1e3
         #------------- loss definition -------------#
         # tracking loss
         self.w_track = 1
@@ -1195,6 +1195,7 @@ class Gradient_Solver:
         att_error_l   = 1/2*self.vee_map(error_Rl) # attitude error in Lie group
         error_wl = self.xl[10:13] - self.xl_ref[10:13]
         tracking_error  = vertcat(error_pl,error_vl,att_error_l,error_wl)
+        # tracking_error  = self.xl -self.xl_ref
         self.loss_track = tracking_error.T@tracking_error
         # primal residual loss
         self.w_rp = 1
@@ -1299,6 +1300,7 @@ class Gradient_Solver:
             att_error_l   = np.reshape(1/2*self.vee_map(error_Rl),(3,1))
             error_wl      = np.reshape(xl_k[10:13]-refxl_k[10:13],(3,1))
             tracking_error = np.vstack((error_pl,error_vl,att_error_l,error_wl))
+            # tracking_error = xl_k - refxl_k
             loss_track    += tracking_error.T@tracking_error
             r_primal_x     = np.reshape(xl_opt[k,:],(self.n_xl,1)) - np.reshape(scxl_opt[k,:],(self.n_xl,1))
             r_primal_w     = np.reshape(Wl_opt[k,:],(self.n_Wl,1)) - np.reshape(scWl_opt[k,:],(self.n_Wl,1))

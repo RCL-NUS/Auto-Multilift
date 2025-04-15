@@ -89,8 +89,8 @@ v0        = np.zeros(MPC_load.n_Pauto)
 
 # parameters of ADAM
 m0        = np.zeros(MPC_load.n_Pauto)
-beta1     = 0.95 # 0.8 for better ADMM initialization
-beta2     = 0.45 # 0.5 for better ADMM initialization
+beta1     = 0.01 # 0.8 for better ADMM initialization
+beta2     = 0.01 # 0.5 for better ADMM initialization
 """--------------------------------------Define Gradient Solver---------------------------------------"""
 Grad_Solver = Optimal_Allocation_DDP_Euler_autotuning_ADMM.Gradient_Solver(sysm_para, horizon,sysm.xl,sysm.Wl,MPC_load.sc_xl,MPC_load.sc_Wl,MPC_load.nv,MPC_load.P_auto,
                                                                        MPC_load.P_pinv,MPC_load.P_ns,e_abs,e_rel)
@@ -129,7 +129,7 @@ z0         = np.random.normal(1,0.01)
 pl         = np.array([[x0,y0,z0]]).T
 vl         = np.reshape(np.random.normal(0,0.01,3),(3,1)) # initial velocity of CO in {Bl}
 # Eulerl     = 0.5*np.array([[0.2,-0.15,0.1]]).T #np.reshape(np.random.normal(0,0.1,3),(3,1))
-angel_max  = 10
+angel_max  = 5
 roll       = np.clip(np.random.normal(0,0.2,1),-angel_max/57.3,angel_max/57.3)
 pitch      = np.clip(np.random.normal(0,0.2,1),-angel_max/57.3,angel_max/57.3)
 yaw        = np.clip(np.random.normal(0,0.2,1),-angel_max/57.3,angel_max/57.3)
@@ -151,7 +151,7 @@ def train(m0,v0,lr0,xl_init,Ref_xl,Ref_Wl,tunable_para0):
         os.makedirs("trained_data")
     tunable_para = tunable_para0
     i = 1
-    i_max      = 10
+    i_max      = 20
     delta_loss = 1e2
     loss0      = 1e2
     epi        = 1e-1
