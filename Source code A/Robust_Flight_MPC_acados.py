@@ -13,7 +13,7 @@ from scipy.spatial.transform import Rotation as Rot
 from scipy import linalg as sLA
 from multiprocessing import Pool
 import multiprocessing
-from pathos.multiprocessing import ProcessingPool as Pool
+# from pathos.multiprocessing import ProcessingPool as Pool
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosModel
 from os import system
 
