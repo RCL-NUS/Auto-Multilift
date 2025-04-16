@@ -29,11 +29,6 @@ print("========================================")
 print("Main code for training or evaluating Distributed Autotuning Multilifting Controller")
 print("PLease choose ctrlmode")
 ctrlmode = input("enter 's' or 'p' without the quotation mark:") # s: sequential, p: parallel
-# Parallel mode is not recommended as it will be very slow when using 'multiprocessing'. 
-# In the future, it woud be of great interest to explore GPU parallel computing.
-# Despite this coding limitation, there should be minimal discrepencies between the results presented in the paper (obtained using 'sequential mode') 
-# and those obtained using 'parallel mode' (future work). This is because we do not update quadrotors' trajectories until the 'for-loop' ends, 
-# as the updated trajectories are temmporarily stored in xq_temp. This approach aligns with the common practices in parallel computing. 
 print("========================================")
 
 mode = 'cl_'+str(ctrlmode)

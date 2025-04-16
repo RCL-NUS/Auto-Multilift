@@ -80,7 +80,7 @@ class multilifting:
         self.As    = SX.sym('As',3,3)
         #-----------Reference parameters--------------#
         self.rc    = 3 # radius of the circle, 5 for testing
-        self.Tc    = 20 # period of the circle, 20 for evaluation, fig-8
+        self.Tc    = 20 # 15 for training, 20 for evaluation, fig-8
         self.hc    = 2  # height of the circle
         self.wc    = 2*np.pi/self.Tc # desired angular velocity of the circle reference
 

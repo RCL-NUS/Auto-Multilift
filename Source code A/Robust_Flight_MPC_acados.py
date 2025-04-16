@@ -315,7 +315,7 @@ class MPC:
         for j in range(self.nq-1):
             xj      = self.x_qi[:,j]
             dis_ij  = pik_xy - xj
-            gp_ijk  = -self.bp2 * log(norm_2(dis_ij) - 2*self.rq) # g^i = 2*self.rq - norm_2(dis_ij) as defined in the paper, so here is log(-g^i)
+            gp_ijk  = -self.bp2 * log(norm_2(dis_ij) - 2*self.rq) 
             self.gq_k += gp_ijk
         self.gq_kfn = Function('gq_k',[self.xi, self.x_qi],[self.gq_k],['xi0', 'xqi0'],['gq_kf'])
         
@@ -648,11 +648,12 @@ class MPC:
             OCP_q[i].solver_options.hessian_approx = 'GAUSS_NEWTON'
             OCP_q[i].solver_options.regularize_method = 'CONVEXIFY'
             OCP_q[i].solver_options.integrator_type = 'ERK'
+            # OCP_q[i].solver_options.sim_method_newton_iter = 4
             OCP_q[i].solver_options.sim_method_num_stages = 4 # default 4, meaning 4-th order Runge Kutta
             OCP_q[i].solver_options.print_level = 0
             OCP_q[i].solver_options.levenberg_marquardt = 1e-10 # small value for gauss newton method, large value for gradient descent method
-            OCP_q[i].solver_options.nlp_solver_type = 'SQP_RTI' # SQP_RTI or SQP
-            # ocp.solver_options.nlp_solver_max_iter = 100
+            OCP_q[i].solver_options.nlp_solver_type = 'SQP' # SQP_RTI or SQP
+            OCP_q[i].solver_options.nlp_solver_max_iter = 100
 
             ##-------set the code generation--------##
             # compile acados ocp
@@ -992,8 +993,8 @@ class MPC:
         ocpl.solver_options.sim_method_num_stages = 4 # default 4
         ocpl.solver_options.print_level = 0
         ocpl.solver_options.levenberg_marquardt = 1e-10 # small value for gauss newton method, large value for gradient descent method
-        ocpl.solver_options.nlp_solver_type ='SQP_RTI' # SQP_RTI or SQP
-        # ocpl.solver_options.nlp_solver_max_iter = 100
+        ocpl.solver_options.nlp_solver_type ='SQP' # SQP_RTI or SQP
+        ocpl.solver_options.nlp_solver_max_iter = 100
 
         ##-------set the code generation--------##
         # compile acados ocp
@@ -1196,7 +1197,7 @@ class MPC:
             uq_traj  = uq_temp
 
             #----------The above code will be in parallel, followed by the following code for computing the payload's trajectory--------#
-            #----------In other words, the computations of the quadrotors' MPC and the payload's MPC are sequential----------#
+            #----------In other words, the computations of the quadrotors' MPC and the payload's MPC is sequential----------#
             #----------The reason is that the payload does not have the compuation capability and its MPC is solved by the leader agent--------#
             
             # solve the MPC of the payload using the updated quadrotor trajectories xq_traj
