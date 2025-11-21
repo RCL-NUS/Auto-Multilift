@@ -1739,7 +1739,7 @@ class MPC_gradient: # compute the gradients of the MPC's solution trajectories w
         
         # solve the gradient trajectory using the PDP method
         I        = np.identity(self.n_xi)
-        P        = self.N * [np.zeros((self.n_xi, self.n_xi))]
+        P        = self.N * [np.zeros((self.n_xi, self.n_xi))] # the length should be (self.N+1)
         W_p      = self.N * [np.zeros((self.n_xi, self.n_pi))] # for beta = weighting matrices (denoted as 'p')
         W_xi     = self.N * [np.zeros((self.n_xi, self.n_xi))] # for beta = xi_init (denoted as 'xi')
         W_xl     = self.N * [np.zeros((self.n_xi, self.n_xl))] # for beta = xl_init (denoted as 'xl')
@@ -1749,8 +1749,8 @@ class MPC_gradient: # compute the gradients of the MPC's solution trajectories w
         W_xi[-1] = matLxxi[-1]
         W_xl[-1] = matLxxl[-1]
         W_ul[-1] = matLxul[-1]
-        for k in range(self.N-1,0,-1):
-            P_next    = P[k]
+        for k in range(self.N-1,0,-1): # the index should be self.N-1,-1,-1
+            P_next    = P[k] # the index should be k+1
             W_p_next  = W_p[k]
             W_xi_next = W_xi[k]
             W_xl_next = W_xl[k]
@@ -1776,7 +1776,7 @@ class MPC_gradient: # compute the gradients of the MPC's solution trajectories w
             W_xl_curr = temp_mat@(M_xl_k - R_k@W_xl_next) + A_k.T@W_xl_next + N_xl_k
             W_ul_curr = temp_mat@(M_ul_k - R_k@W_ul_next) + A_k.T@W_ul_next + N_ul_k
 
-            P[k-1]    = P_curr
+            P[k-1]    = P_curr # the index should be k, but this should have a very limited impact on the generated gradient
             W_p[k-1]  = W_p_curr
             W_xi[k-1] = W_xi_curr
             W_xl[k-1] = W_xl_curr
