@@ -576,8 +576,8 @@ if __name__ == '__main__':
                             dlidp     = (Dlidpi[i]+Dli[i])@weight_i_grad
                             norm_grad_i   = LA.norm(dlidp)
                             print('k_train=',k_train,'time step=',k,'loss_i=',loss_i,'norm_grad_i=',format(norm_grad_i,'.4f'))
-                            loss_nn_i     = NN_Quad[i].myloss(NN_Quad[i](NN_input_quad[i]),dlidp)
-                            optimizer     = torch.optim.Adam(NN_Quad[i].parameters(),lr=lr_nn)
+                            loss_nn_i     = NN_Quad[i].myloss(NN_Quad[i](NN_input_quad[i]),dlidp) # This uses the current hyperparameters \theta_k. In theory, it should have used the historical hyperparameters.
+                            optimizer     = torch.optim.Adam(NN_Quad[i].parameters(),lr=lr_nn) # This should be moved outside the training loop; however, it does not affect the training results.
                             NN_Quad[i].zero_grad()
                             loss_nn_i.backward()
                             optimizer.step()
