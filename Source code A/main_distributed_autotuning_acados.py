@@ -104,7 +104,7 @@ def Reference_for_MPC(time_traj, angle_t):
         Ref_xi  = np.zeros((nxi,horizon+1))
         Ref_ui  = np.zeros((nui,horizon))
         for j in range(horizon):
-            ref_p, ref_v, ref_a   = stm.new_circle_quadrotor(coeffa,time_traj + j*dt_ctrl, angle_t, i)
+            ref_p, ref_v, ref_a   = stm.new_circle_quadrotor(coeffa,time_traj + j*dt_ctrl, angle_t, i) # this needs corrections when time_traj+j*dt_ctrl > final time! In that case, we fix the time at the final time instance!
             # ref_p, ref_v, ref_a   = stm.hovering_quadrotor(angle_t, i)
             if i==0: # we only need to compute the payload's reference for an arbitrary quadrotor
                 ref_pl, ref_vl, ref_al   = stm.new_circle_load(coeffa,time_traj + j*dt_ctrl)
