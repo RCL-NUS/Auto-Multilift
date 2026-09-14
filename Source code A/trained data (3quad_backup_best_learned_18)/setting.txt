@@ -1,0 +1,66 @@
+self.ui_lb = [0, -0.5,-0.5,-0.5] # lower-bound
+        self.ui_ub = [40, 0.5,0.5,0.5]   # upper-bound
+        self.ul_lb = self.n_ul*[0]
+        self.ul_ub = self.n_ul*[100]
+
+
+weight_hl_i  = 5e3*np.array([1,1,1, 1,1,1]) # weight for the high-level loss function for the i-th quadrotor
+        weight_hl_l  = 2e4*np.array([1,1,2, 1,1,1, 5,5,5, 10,10,1]) # weight for the high-level loss function for the load
+
+
+
+gamma      = 1e-4 # barrier parameter, cannot be too small
+gamma2     = 1e-15
+
+self.gq_k   = 0
+        if index == 0:
+            xja        = self.xq[:,1]
+            pjak       = xja[0:2,0]
+            pija_xy    = pik_xy - pjak
+            gq_jak     = -self.bp2 * log(norm_2(pija_xy) - 2*self.rq)
+            xjb        = self.xq[:,self.nq-1]
+            pjbk       = xjb[0:2,0]
+            pijb_xy    = pik_xy - pjbk
+            gq_jbk     = -self.bp2 * log(norm_2(pijb_xy) - 2*self.rq)
+            gq_jk      = gq_jak + gq_jbk
+            self.gq_k += gq_jk
+            gq_janbk   = norm_2(pija_xy) - 2*self.rq
+            gq_jbnbk   = norm_2(pijb_xy) - 2*self.rq
+
+        elif index == self.nq-1:
+            xja        = self.xq[:,0]
+            pjak       = xja[0:2,0]
+            pija_xy    = pik_xy - pjak
+            gq_jak     = -self.bp2 * log(norm_2(pija_xy) - 2*self.rq)
+            xjb        = self.xq[:,self.nq-2]
+            pjbk       = xjb[0:2,0]
+            pijb_xy    = pik_xy - pjbk
+            gq_jbk     = -self.bp2 * log(norm_2(pijb_xy) - 2*self.rq)
+            gq_jk      = gq_jak + gq_jbk
+            self.gq_k += gq_jk
+            gq_janbk   = norm_2(pija_xy) - 2*self.rq
+            gq_jbnbk   = norm_2(pijb_xy) - 2*self.rq
+
+        else:
+            xja        = self.xq[:,index-1]
+            pjak       = xja[0:2,0]
+            pija_xy    = pik_xy - pjak
+            gq_jak     = -self.bp2 * log(norm_2(pija_xy) - 2*self.rq)
+            xjb        = self.xq[:,index+1]
+            pjbk       = xjb[0:2,0]
+            pijb_xy    = pik_xy - pjbk
+            gq_jbk     = -self.bp2 * log(norm_2(pijb_xy) - 2*self.rq)
+            gq_jk      = gq_jak + gq_jbk
+            self.gq_k += gq_jk
+            gq_janbk   = norm_2(pija_xy) - 2*self.rq
+            gq_jbnbk   = norm_2(pijb_xy) - 2*self.rq
+        # for j in range(self.nq): 
+        #     if j == index:
+        #         continue
+        #     xj          = self.xq[:,j]
+        #     pjk         = vertcat(xj[0,0],xj[1,0],xj[2,0])
+        #     pij         = pik - pjk
+        #     gq_jk       = -self.bp2 * log(norm_2(pij)-2*self.rq)
+        #     self.gq_k  += gq_jk
+        self.gq_kfn = Function('gq_k',[self.xi, self.xq],[self.gq_k],['xi0', 'xq0'],['gq_kf'])
+
